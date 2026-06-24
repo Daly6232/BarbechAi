@@ -1,54 +1,40 @@
 def score_business(business):
-    """
-    Simple but realistic lead scoring engine (0–100).
-    """
-
     score = 0
 
     enrichment = business.get("enrichment", {})
-    website = enrichment.get("website_candidates", [])
+    websites = enrichment.get("website_candidates", [])
 
-    # ------------------------
-    # WEBSITE SCORE
-    # ------------------------
-    if not website:
-        score += 40   # no website = big opportunity
-    else:
-        score += 10   # has some presence
+    # Opportunity scoring
+    # Missing things = higher score
 
-    # ------------------------
-    # SOCIAL SCORE (mock for now)
-    # ------------------------
-    has_facebook = any("facebook" in url for url in website)
-    has_instagram = any("instagram" in url for url in website)
+    has_website = any(
+        "example.com" not in url
+        and "facebook.com" not in url
+        and "instagram.com" not in url
+        for url in websites
+    )
 
-    if has_facebook:
-        score += 10
-    else:
-        score += 5
+    has_facebook = any("facebook.com" in url for url in websites)
+    has_instagram = any("instagram.com" in url for url in websites)
 
-    if has_instagram:
-        score += 10
-    else:
-        score += 5
+    if not has_website:
+        score += 30
 
-    # ------------------------
-    # BUSINESS TYPE BONUS
-    # ------------------------
-    category = business.get("category", "")
+    if not has_facebook:
+        score += 20
 
-    if category in ["restaurant", "cafe", "fast_food"]:
-        score += 10
+    if not has_instagram:
+        score += 20
 
-    # ------------------------
-    # FINAL CLAMP
-    # ------------------------
-    score = min(100, score)
+    if not business.get("address"):
+        score += 15
 
-    # ------------------------
-    # OPPORTUNITY LEVEL
-    # ------------------------
-    if score <= 40:
+    if not business.get("city"):
+        score += 15
+
+    score = min(score, 100)
+
+    if score <= 30:
         level = "LOW"
     elif score <= 70:
         level = "MEDIUM"
