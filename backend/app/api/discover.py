@@ -1,5 +1,10 @@
 from fastapi import APIRouter
 
+from app.services.discovery import discover_businesses
+from app.services.normalization import normalize_businesses
+from app.services.real_enrichment import enrich_business_real
+from app.services.scoring import score_business
+
 router = APIRouter()
 
 @router.get("/discover")
