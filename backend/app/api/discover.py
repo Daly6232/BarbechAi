@@ -1,3 +1,7 @@
+from fastapi import APIRouter
+
+router = APIRouter()
+
 @router.get("/discover")
 def discover(city: str, business_type: str = "restaurant"):
     raw = discover_businesses(city, business_type)
@@ -6,7 +10,6 @@ def discover(city: str, business_type: str = "restaurant"):
         return raw
 
     cleaned = normalize_businesses(raw)
-
     results = []
 
     for b in cleaned:
