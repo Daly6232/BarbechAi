@@ -4,8 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.discover import router as discover_router
 from app.api.crm import router as crm_router
 from app.api.agents import router as agent_router
+from app.database import init_db
 
 app = FastAPI()
+init_db()
 
 # ------------------------
 # CORS FIX (CRITICAL)
