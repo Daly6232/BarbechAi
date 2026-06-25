@@ -3,4 +3,5 @@ uvicorn
 requests
 psycopg2-binary
 sqlalchemy
-duckduckgo-search
+ddgs
+uvicorn[standard]
