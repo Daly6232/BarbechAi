@@ -1,5 +1,7 @@
 import requests
 
+from app.data.location_bbox import LOCATION_BBOX
+
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 HEADERS = {
@@ -7,16 +9,16 @@ HEADERS = {
     "User-Agent": "BarbechAI/1.0"
 }
 
-CITY_BBOX = {
-    "Tunis": (36.70, 10.10, 36.90, 10.30)
-}
 
 def discover_businesses(city: str, business_type: str = "restaurant"):
 
-    if city not in CITY_BBOX:
-        return {"error": "City not supported"}
+    if city not in LOCATION_BBOX:
+        return {
+            "error": "Location not supported",
+            "supported_locations": sorted(list(LOCATION_BBOX.keys()))
+        }
 
-    south, west, north, east = CITY_BBOX[city]
+    south, west, north, east = LOCATION_BBOX[city]
 
     query = f"""
     [out:json][timeout:25];
