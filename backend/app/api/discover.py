@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 from app.services.discovery import discover_businesses
 from app.services.normalization import normalize_businesses
-from app.services.real_enrichment import enrich_business_real
 from app.services.scoring import score_business
-from app.database import SessionLocal, Business, Enrichment, Lead
+from app.database import SessionLocal, Business, Lead
 import uuid
 
 router = APIRouter()
@@ -21,10 +20,7 @@ def discover(city: str, business_type: str = "restaurant"):
 
     try:
         for b in cleaned:
-            enrichment = enrich_business_real(b["name"], city)
-            b["enrichment"] = enrichment
             score = score_business(b)
-
             biz_id = str(uuid.uuid4())
 
             db_biz = Business(
@@ -38,15 +34,6 @@ def discover(city: str, business_type: str = "restaurant"):
                 source=str(b.get("source", [])),
             )
             db.merge(db_biz)
-
-            db_enrich = Enrichment(
-                id=str(uuid.uuid4()),
-                business_id=biz_id,
-                website=enrichment.get("website"),
-                facebook=enrichment.get("facebook"),
-                instagram=enrichment.get("instagram"),
-            )
-            db.add(db_enrich)
 
             db_lead = Lead(
                 id=str(uuid.uuid4()),
@@ -63,7 +50,6 @@ def discover(city: str, business_type: str = "restaurant"):
                 "city": city,
                 "score": score["score"],
                 "opportunity": score["opportunity_level"],
-                "enrichment": enrichment,
             })
 
         db.commit()
@@ -73,7 +59,4 @@ def discover(city: str, business_type: str = "restaurant"):
     finally:
         db.close()
 
-    return {
-        "count": len(results),
-        "results": results
-    }
+    return {"count": len(results), "results": results}
