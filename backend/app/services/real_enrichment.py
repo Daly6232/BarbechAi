@@ -1,39 +1,43 @@
 import requests
 import re
+from urllib.parse import quote_plus
 
-def extract_official_links(text):
-    """
-    Very simple heuristic extractor for now.
-    Later we replace with Google/SerpAPI.
-    """
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; BarbechAI/1.0)"
+}
 
-    urls = re.findall(r"https?://[^\s]+", text)
-    return urls[:5]
-
-
-def mock_google_search(query: str):
-    """
-    Placeholder for real search engine integration.
-    This simulates future Google/SerpAPI response format.
-    """
-
-    return {
-        "query": query,
-        "results": [
-            f"https://example.com/{query.replace(' ', '-')}",
-            f"https://facebook.com/{query.replace(' ', '-')}",
-            f"https://instagram.com/{query.replace(' ', '-')}"
-        ]
-    }
-
+def search_web(query: str):
+    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=8)
+        urls = re.findall(r'href="(https?://[^"&]+)"', res.text)
+        clean = []
+        for u in urls:
+            if "duckduckgo" not in u and "bing.com" not in u:
+                clean.append(u)
+            if len(clean) >= 5:
+                break
+        return clean
+    except Exception:
+        return []
 
 def enrich_business_real(name: str, city: str):
+    base = f"{name} {city}"
 
-    query = f"{name} {city}"
+    website_urls = search_web(f"{base} site officiel")
+    facebook_urls = search_web(f"{base} facebook")
+    instagram_urls = search_web(f"{base} instagram")
 
-    search_result = mock_google_search(query)
+    website = next((u for u in website_urls
+        if "facebook.com" not in u and "instagram.com" not in u), None)
+    facebook = next((u for u in facebook_urls
+        if "facebook.com" in u), None)
+    instagram = next((u for u in instagram_urls
+        if "instagram.com" in u), None)
 
     return {
-        "query": query,
-        "website_candidates": search_result["results"]
+        "website": website,
+        "facebook": facebook,
+        "instagram": instagram,
+        "website_candidates": website_urls + facebook_urls + instagram_urls
     }
