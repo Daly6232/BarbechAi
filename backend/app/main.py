@@ -25,6 +25,6 @@ app.include_router(crm_router)
 app.include_router(agent_router)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok", "system": "BarbechAI"}
