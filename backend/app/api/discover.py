@@ -3,24 +3,30 @@ from app.services.discovery import discover_businesses
 from app.services.normalization import normalize_businesses
 from app.services.scoring import score_business
 from app.services.enrichment_engine import enrich_in_background
-from app.services.websocket_manager import manager
 from app.database import SessionLocal, Business, Enrichment, Lead
 import uuid
-import asyncio
 
 router = APIRouter()
 
 def on_enrichment_complete(business_id, enrichment_data):
     db = SessionLocal()
     try:
-        db_enrich = Enrichment(
-            id=str(uuid.uuid4()),
-            business_id=business_id,
-            website=enrichment_data.get("website"),
-            facebook=enrichment_data.get("facebook"),
-            instagram=enrichment_data.get("instagram"),
-        )
-        db.add(db_enrich)
+        existing = db.query(Enrichment).filter(Enrichment.business_id == business_id).first()
+        if existing:
+            existing.website = enrichment_data.get("website") or existing.website
+            existing.facebook = enrichment_data.get("facebook") or existing.facebook
+            existing.instagram = enrichment_data.get("instagram") or existing.instagram
+            existing.phone = enrichment_data.get("phone") or existing.phone
+            existing.address = enrichment_data.get("address") or existing.address
+        else:
+            db_enrich = Enrichment(
+                id=str(uuid.uuid4()),
+                business_id=business_id,
+                website=enrichment_data.get("website"),
+                facebook=enrichment_data.get("facebook"),
+                instagram=enrichment_data.get("instagram"),
+            )
+            db.add(db_enrich)
 
         lead = db.query(Lead).filter(Lead.business_id == business_id).first()
         if lead:
@@ -59,6 +65,15 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
             )
             db.merge(db_biz)
 
+            db_enrich = Enrichment(
+                id=str(uuid.uuid4()),
+                business_id=biz_id,
+                website=b.get("website"),
+                facebook=b.get("facebook"),
+                instagram=b.get("instagram"),
+            )
+            db.add(db_enrich)
+
             db_lead = Lead(
                 id=str(uuid.uuid4()),
                 business_id=biz_id,
@@ -73,10 +88,21 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
                 "name": b["name"],
                 "category": b["category"],
                 "city": city,
+                "address": b.get("address", ""),
+                "phone": b.get("phone", ""),
+                "email": b.get("email", ""),
+                "website": b.get("website", ""),
+                "facebook": b.get("facebook", ""),
+                "instagram": b.get("instagram", ""),
+                "opening_hours": b.get("opening_hours", ""),
                 "lat": b.get("lat"),
                 "lng": b.get("lng"),
                 "score": score["score"],
                 "opportunity": score["opportunity_level"],
+                "has_website": score["has_website"],
+                "has_facebook": score["has_facebook"],
+                "has_instagram": score["has_instagram"],
+                "has_phone": score["has_phone"],
                 "status": "ENRICHING",
             })
 

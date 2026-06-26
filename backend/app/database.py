@@ -30,6 +30,10 @@ class Enrichment(Base):
     website = Column(String)
     facebook = Column(String)
     instagram = Column(String)
+    phone = Column(String)
+    email = Column(String)
+    address = Column(String)
+    opening_hours = Column(String)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 class Lead(Base):
