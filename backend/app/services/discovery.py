@@ -48,20 +48,17 @@ def discover_businesses(city: str, business_type: str = "restaurant"):
                 "lat": el.get("lat"),
                 "lng": el.get("lon"),
                 "source": ["osm"],
-                # Address
                 "address": " ".join(filter(None, [
                     tags.get("addr:housenumber", ""),
                     tags.get("addr:street", ""),
                     tags.get("addr:city", ""),
                 ])),
                 "postcode": tags.get("addr:postcode", ""),
-                # Contact
                 "phone": tags.get("phone") or tags.get("contact:phone") or tags.get("contact:mobile", ""),
                 "email": tags.get("email") or tags.get("contact:email", ""),
                 "website": tags.get("website") or tags.get("contact:website", ""),
                 "facebook": tags.get("contact:facebook") or tags.get("facebook", ""),
                 "instagram": tags.get("contact:instagram") or tags.get("instagram", ""),
-                # Details
                 "opening_hours": tags.get("opening_hours", ""),
                 "cuisine": tags.get("cuisine", ""),
                 "brand": tags.get("brand", ""),

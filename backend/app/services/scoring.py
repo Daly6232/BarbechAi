@@ -1,4 +1,4 @@
-ef score_business(business):
+def score_business(business):
     score = 0
 
     has_website = bool(business.get("website"))
@@ -8,29 +8,23 @@ ef score_business(business):
     has_email = bool(business.get("email"))
     has_address = bool(business.get("address"))
 
-    # Missing website = high opportunity
     if not has_website:
         score += 30
     else:
         score -= 10
 
-    # Missing Facebook
     if not has_facebook:
         score += 20
 
-    # Missing Instagram
     if not has_instagram:
         score += 20
 
-    # Missing phone
     if not has_phone:
         score += 15
 
-    # Missing email
     if not has_email:
         score += 10
 
-    # Missing address
     if not has_address:
         score += 5
 
