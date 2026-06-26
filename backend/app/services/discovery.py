@@ -1,4 +1,4 @@
-	mport requests
+import requests
 from app.data.location_bbox import LOCATION_BBOX
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
