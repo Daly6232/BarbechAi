@@ -1,4 +1,17 @@
-def score_business(business):
+from app.core.constants import (
+    DEFAULT_BUSINESS_TYPE,
+)
+
+
+WEBSITE_WEIGHT = 30
+FACEBOOK_WEIGHT = 20
+INSTAGRAM_WEIGHT = 20
+PHONE_WEIGHT = 15
+EMAIL_WEIGHT = 10
+ADDRESS_WEIGHT = 5
+
+
+def score_business(business: dict) -> dict:
     score = 0
 
     has_website = bool(business.get("website"))
@@ -9,24 +22,24 @@ def score_business(business):
     has_address = bool(business.get("address"))
 
     if not has_website:
-        score += 30
+        score += WEBSITE_WEIGHT
     else:
         score -= 10
 
     if not has_facebook:
-        score += 20
+        score += FACEBOOK_WEIGHT
 
     if not has_instagram:
-        score += 20
+        score += INSTAGRAM_WEIGHT
 
     if not has_phone:
-        score += 15
+        score += PHONE_WEIGHT
 
     if not has_email:
-        score += 10
+        score += EMAIL_WEIGHT
 
     if not has_address:
-        score += 5
+        score += ADDRESS_WEIGHT
 
     score = max(0, min(score, 100))
 
@@ -40,9 +53,14 @@ def score_business(business):
     return {
         "score": score,
         "opportunity_level": level,
+        "business_type": business.get(
+            "category",
+            DEFAULT_BUSINESS_TYPE,
+        ),
         "has_website": has_website,
         "has_facebook": has_facebook,
         "has_instagram": has_instagram,
         "has_phone": has_phone,
         "has_email": has_email,
+        "has_address": has_address,
     }

@@ -1,91 +1,183 @@
-from app.database import SessionLocal, Business, Enrichment, Lead, CRMPipeline
-import uuid
 from datetime import datetime
+
+from app.core.logging import get_logger
+from app.core.security import generate_uuid
+from app.database import (
+    Business,
+    CRMPipeline,
+    Enrichment,
+    Lead,
+    SessionLocal,
+)
+
+logger = get_logger(__name__)
+
 
 def get_pipeline():
     db = SessionLocal()
+
     try:
         leads = db.query(Lead).order_by(Lead.created_at.desc()).all()
+
         results = []
+
         for lead in leads:
-            biz = db.query(Business).filter(Business.id == lead.business_id).first()
-            enrich = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
-            results.append({
-                "id": lead.id,
-                "business_id": lead.business_id,
-                "name": biz.name if biz else "",
-                "category": biz.category if biz else "",
-                "city": biz.city if biz else "",
-                "address": enrich.address or (biz.address if biz else "") if enrich else (biz.address if biz else ""),
-                "phone": enrich.phone if enrich else "",
-                "email": enrich.email if enrich else "",
-                "website": enrich.website if enrich else "",
-                "facebook": enrich.facebook if enrich else "",
-                "instagram": enrich.instagram if enrich else "",
-                "opening_hours": enrich.opening_hours if enrich else "",
-                "score": lead.score,
-                "opportunity_level": lead.opportunity_level,
-                "status": lead.status,
-                "assigned_agent": lead.assigned_agent,
-                "created_at": lead.created_at.isoformat() if lead.created_at else "",
-            })
-        return {"count": len(results), "leads": results}
-    except Exception as e:
-        return {"count": 0, "leads": [], "error": str(e)}
+
+            business = (
+                db.query(Business)
+                .filter(Business.id == lead.business_id)
+                .first()
+            )
+
+            enrichment = (
+                db.query(Enrichment)
+                .filter(Enrichment.business_id == lead.business_id)
+                .first()
+            )
+
+            results.append(
+                {
+                    "id": lead.id,
+                    "business_id": lead.business_id,
+                    "name": business.name if business else "",
+                    "category": business.category if business else "",
+                    "city": business.city if business else "",
+                    "address": (
+                        enrichment.address
+                        if enrichment and enrichment.address
+                        else business.address if business else ""
+                    ),
+                    "phone": enrichment.phone if enrichment else "",
+                    "email": enrichment.email if enrichment else "",
+                    "website": enrichment.website if enrichment else "",
+                    "facebook": enrichment.facebook if enrichment else "",
+                    "instagram": enrichment.instagram if enrichment else "",
+                    "opening_hours": (
+                        enrichment.opening_hours if enrichment else ""
+                    ),
+                    "score": lead.score,
+                    "opportunity_level": lead.opportunity_level,
+                    "status": lead.status,
+                    "assigned_agent": lead.assigned_agent,
+                    "created_at": (
+                        lead.created_at.isoformat()
+                        if lead.created_at
+                        else ""
+                    ),
+                }
+            )
+
+        return {
+            "count": len(results),
+            "leads": results,
+        }
+
+    except Exception as exc:
+        logger.exception(exc)
+        return {
+            "count": 0,
+            "leads": [],
+            "error": str(exc),
+        }
+
     finally:
         db.close()
+
 
 def create_lead(business: dict, score: dict):
     db = SessionLocal()
+
     try:
         lead = Lead(
-            id=str(uuid.uuid4()),
-            business_id=business.get("id", str(uuid.uuid4())),
+            id=generate_uuid(),
+            business_id=business.get("id", generate_uuid()),
             score=score.get("score", 0),
-            opportunity_level=score.get("opportunity_level", "LOW"),
+            opportunity_level=score.get(
+                "opportunity_level",
+                "LOW",
+            ),
             status="NEW",
         )
+
         db.add(lead)
         db.commit()
-        return {"success": True, "lead_id": lead.id}
-    except Exception as e:
+
+        return {
+            "success": True,
+            "lead_id": lead.id,
+        }
+
+    except Exception as exc:
         db.rollback()
-        return {"error": str(e)}
+        logger.exception(exc)
+        return {"error": str(exc)}
+
     finally:
         db.close()
+
 
 def update_status(lead_id: str, new_status: str):
     db = SessionLocal()
+
     try:
-        lead = db.query(Lead).filter(Lead.id == lead_id).first()
-        if lead:
-            lead.status = new_status
-            db.commit()
-            return {"success": True}
-        return {"error": "Lead not found"}
-    except Exception as e:
+        lead = (
+            db.query(Lead)
+            .filter(Lead.id == lead_id)
+            .first()
+        )
+
+        if not lead:
+            return {"error": "Lead not found"}
+
+        lead.status = new_status
+
+        db.commit()
+
+        return {"success": True}
+
+    except Exception as exc:
         db.rollback()
-        return {"error": str(e)}
+        logger.exception(exc)
+        return {"error": str(exc)}
+
     finally:
         db.close()
 
+
 def add_note(lead_id: str, note: str):
     db = SessionLocal()
+
     try:
-        pipeline = db.query(CRMPipeline).filter(CRMPipeline.lead_id == lead_id).first()
+        pipeline = (
+            db.query(CRMPipeline)
+            .filter(CRMPipeline.lead_id == lead_id)
+            .first()
+        )
+
+        timestamp = datetime.utcnow().isoformat()
+
         if pipeline:
-            pipeline.notes = (pipeline.notes or "") + f"\n{datetime.utcnow().isoformat()}: {note}"
+            pipeline.notes = (
+                (pipeline.notes or "")
+                + f"\n{timestamp}: {note}"
+            )
         else:
             pipeline = CRMPipeline(
-                id=str(uuid.uuid4()),
+                id=generate_uuid(),
                 lead_id=lead_id,
-                notes=f"{datetime.utcnow().isoformat()}: {note}",
+                notes=f"{timestamp}: {note}",
             )
+
             db.add(pipeline)
+
         db.commit()
+
         return {"success": True}
-    except Exception as e:
+
+    except Exception as exc:
         db.rollback()
-        return {"error": str(e)}
+        logger.exception(exc)
+        return {"error": str(exc)}
+
     finally:
         db.close()

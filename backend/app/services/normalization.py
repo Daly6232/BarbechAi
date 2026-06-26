@@ -1,34 +1,44 @@
-def normalize_businesses(businesses):
+from typing import Dict, List
+
+
+DEFAULT_CATEGORY = "unknown"
+
+
+def normalize_businesses(businesses: List[Dict]) -> List[Dict]:
     seen = set()
     cleaned = []
 
-    for b in businesses:
-        if not b.get("name"):
+    for business in businesses:
+        name = (business.get("name") or "").strip()
+
+        if not name:
             continue
 
-        key = b["name"].strip().lower()
+        key = name.casefold()
 
         if key in seen:
             continue
 
         seen.add(key)
 
-        cleaned.append({
-            "name": b["name"].strip(),
-            "category": b.get("category", "unknown"),
-            "city": b.get("city"),
-            "address": b.get("address", ""),
-            "lat": b.get("lat"),
-            "lng": b.get("lng"),
-            "source": b.get("source", []),
-            "phone": b.get("phone", ""),
-            "email": b.get("email", ""),
-            "website": b.get("website", ""),
-            "facebook": b.get("facebook", ""),
-            "instagram": b.get("instagram", ""),
-            "opening_hours": b.get("opening_hours", ""),
-            "cuisine": b.get("cuisine", ""),
-            "brand": b.get("brand", ""),
-        })
+        cleaned.append(
+            {
+                "name": name,
+                "category": business.get("category", DEFAULT_CATEGORY),
+                "city": business.get("city"),
+                "address": business.get("address", "").strip(),
+                "lat": business.get("lat"),
+                "lng": business.get("lng"),
+                "source": business.get("source", []),
+                "phone": business.get("phone", "").strip(),
+                "email": business.get("email", "").strip(),
+                "website": business.get("website", "").strip(),
+                "facebook": business.get("facebook", "").strip(),
+                "instagram": business.get("instagram", "").strip(),
+                "opening_hours": business.get("opening_hours", "").strip(),
+                "cuisine": business.get("cuisine", "").strip(),
+                "brand": business.get("brand", "").strip(),
+            }
+        )
 
     return cleaned
