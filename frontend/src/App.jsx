@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import SearchPage from "./pages/SearchPage";
 import LeadsPage from "./pages/LeadsPage";
+import CRMPage from "./pages/CRMPage";
 import AgentPage from "./pages/AgentPage";
 import ExportPage from "./pages/ExportPage";
 
-const PAGES = ["Search", "Leads", "Agent", "Export"];
+const PAGES = ["Search", "Leads", "CRM", "Agent", "Export"];
 
 export default function App() {
   const [page, setPage] = useState("Search");
@@ -45,6 +46,7 @@ export default function App() {
       {/* Pages */}
       {page === "Search" && <SearchPage />}
       {page === "Leads" && <LeadsPage />}
+      {page === "CRM" && <CRMPage />}
       {page === "Agent" && <AgentPage />}
       {page === "Export" && <ExportPage />}
     </div>
