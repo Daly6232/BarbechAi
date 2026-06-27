@@ -91,7 +91,6 @@ class Lead(Base):
     __tablename__ = "leads"
 
     id = Column(String, primary_key=True)
-
     business_id = Column(
         String,
         ForeignKey("businesses.id"),
@@ -102,11 +101,28 @@ class Lead(Base):
     opportunity_level = Column(String)
     status = Column(String, default="NEW")
     assigned_agent = Column(String)
+    assigned_agent_name = Column(String)
+    in_crm = Column(String, default="false")
+    crm_status = Column(String, default="NEW")
+    crm_notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship(
         "Business",
         back_populates="leads",
+    )
+
+    pipeline = relationship(
+        "CRMPipeline",
+        back_populates="lead",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    activities = relationship(
+        "AgentActivity",
+        back_populates="lead",
+        cascade="all, delete-orphan",
     )
 
     pipeline = relationship(
