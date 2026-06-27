@@ -1,450 +1,327 @@
 """
 Multi-Source Discovery Engine
-Phase 2: Parallel search across Foursquare, HERE, TomTom, Geoapify.
-Finds businesses that OSM may have missed and enriches existing ones.
+Phase 2: Parallel search across Foursquare, TomTom, Geoapify.
+Primary source when OSM returns 0 results.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
-
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.data.location_bbox import LOCATION_BBOX
 
 logger = get_logger(__name__)
 
-# ───────────────────────────────────────────────────────────────
-# API KEY CHECKS
-# ───────────────────────────────────────────────────────────────
-
 FOURSQUARE_KEY = settings.FOURSQUARE_API_KEY
-HERE_KEY = settings.HERE_API_KEY
 TOMTOM_KEY = settings.TOMTOM_API_KEY
 GEOAPIFY_KEY = settings.GEOAPIFY_API_KEY
 
+TIMEOUT = settings.REQUEST_TIMEOUT
 
-# ───────────────────────────────────────────────────────────────
-# FOURSQUARE
-# ───────────────────────────────────────────────────────────────
+# ── French label → search query per API ──────────────────────────────────────
 
-def _foursquare_tag(business_type: str) -> str:
-    """Map French business type to Foursquare category ID or search query."""
-    mapping = {
-        "restaurant": "restaurant",
-        "café": "cafe",
-        "fast food": "fast food",
-        "pâtisserie": "bakery",
-        "boulangerie": "bakery",
-        "boucherie": "butcher",
-        "épicerie": "convenience store",
-        "supermarché": "supermarket",
-        "hotel": "hotel",
-        "pharmacie": "pharmacy",
-        "parapharmacie": "pharmacy",
-        "clinique": "clinic",
-        "cabinet médical": "doctor",
-        "dentiste": "dentist",
-        "opticien": "optician",
-        "laboratoire": "laboratory",
-        "vétérinaire": "veterinarian",
-        "gym": "gym",
-        "salle de sport": "gym",
-        "salon de coiffure": "hair salon",
-        "centre esthétique": "beauty salon",
-        "hammam": "spa",
-        "spa": "spa",
-        "banque": "bank",
-        "école": "school",
-        "lycée": "school",
-        "université": "university",
-        "librairie": "bookstore",
-        "garage": "auto repair",
-        "station service": "gas station",
-        "cinéma": "movie theater",
-        "musée": "museum",
-        "centre commercial": "shopping mall",
-        "marché": "market",
-    }
-    return mapping.get(business_type, business_type)
+FOURSQUARE_QUERY_MAP = {
+    "restaurant": "restaurant",
+    "café": "cafe coffee",
+    "lounge": "lounge bar",
+    "fast-food": "fast food",
+    "pizzeria": "pizza",
+    "sandwicherie": "sandwich",
+    "snack": "snack",
+    "pâtisserie": "patisserie pastry",
+    "boulangerie": "boulangerie bakery",
+    "boucherie": "boucherie butcher",
+    "épicerie": "epicerie grocery",
+    "supermarché": "supermarket",
+    "traiteur": "traiteur catering",
+    "hôtel": "hotel",
+    "maison d'hôtes": "guest house",
+    "auberge": "hostel auberge",
+    "résidence touristique": "residence hotel",
+    "agence de voyage": "travel agency",
+    "pharmacie": "pharmacy pharmacie",
+    "parapharmacie": "parapharmacie cosmetics",
+    "clinique": "clinic clinique",
+    "cabinet médical": "doctor medical",
+    "dentiste": "dentist dentiste",
+    "opticien": "optician opticien",
+    "laboratoire d'analyses": "laboratory analyses",
+    "vétérinaire": "veterinarian",
+    "cabinet de kinésithérapie": "physiotherapy kinesitherapie",
+    "radiologie": "radiology radiologie",
+    "salle de sport": "gym fitness",
+    "piscine": "swimming pool piscine",
+    "club sportif": "sports club",
+    "centre de fitness": "fitness center",
+    "salon de coiffure": "hair salon coiffure",
+    "institut de beauté": "beauty salon institut",
+    "hammam": "hammam spa",
+    "spa": "spa",
+    "centre d'esthétique": "esthetique beauty",
+    "onglerie": "nail salon onglerie",
+    "centre de formation": "training center formation",
+    "école de langue": "language school",
+    "auto-école": "driving school auto ecole",
+    "académie de musique": "music school",
+    "académie de danse": "dance school",
+    "crèche": "daycare creche",
+    "banque": "bank banque",
+    "assurance": "insurance assurance",
+    "agence immobilière": "real estate immobilier",
+    "cabinet juridique": "law firm avocat",
+    "cabinet comptable": "accounting comptable",
+    "bureau de change": "currency exchange",
+    "notaire": "notaire notary",
+    "agence de communication": "communication agency",
+    "agence digitale": "digital agency",
+    "société informatique": "IT company informatique",
+    "espace coworking": "coworking space",
+    "garage": "garage car repair",
+    "lavage auto": "car wash",
+    "station-service": "gas station fuel",
+    "vente de pièces auto": "auto parts",
+    "concessionnaire": "car dealer",
+    "salle des fêtes": "event hall salle fetes",
+    "studio photo": "photo studio",
+    "imprimerie": "printing imprimerie",
+    "librairie": "bookstore librairie",
+    "papeterie": "stationery papeterie",
+    "bijouterie": "jewelry bijouterie",
+    "vêtements": "clothing clothes",
+    "chaussures": "shoes chaussures",
+    "maroquinerie": "leather goods",
+    "lingerie": "lingerie",
+    "articles de sport": "sports store",
+    "électroménager": "appliances electromenager",
+    "informatique": "computer store",
+    "téléphonie": "mobile phone",
+    "meubles": "furniture meubles",
+    "décoration": "decoration home",
+    "matériaux de construction": "building materials construction",
+    "quincaillerie": "hardware store",
+    "droguerie": "hardware chemist",
+    "fleuriste": "florist fleurs",
+    "transport": "transport logistics",
+    "logistique": "logistics warehouse",
+    "grossiste": "wholesale grossiste",
+    "bureau d'études": "consulting engineering",
+    "cabinet d'architecture": "architecture architect",
+    "menuiserie": "carpenter menuiserie",
+    "plomberie": "plumber plomberie",
+    "électricité": "electrician",
+    "climatisation": "air conditioning",
+    "peinture": "painter peinture",
+    "carrelage": "tiling carrelage",
+    "ferronnerie": "ironwork ferronnerie",
+}
+
+GEOAPIFY_CATEGORY_MAP = {
+    "restaurant": "catering.restaurant",
+    "café": "catering.cafe",
+    "fast-food": "catering.fast_food",
+    "pâtisserie": "catering.cafe",
+    "boulangerie": "commercial.food_and_drink.bakery",
+    "boucherie": "commercial.food_and_drink.butcher",
+    "épicerie": "commercial.supermarket",
+    "supermarché": "commercial.supermarket",
+    "hôtel": "accommodation.hotel",
+    "maison d'hôtes": "accommodation.guest_house",
+    "auberge": "accommodation.hostel",
+    "pharmacie": "healthcare.pharmacy",
+    "clinique": "healthcare.clinic_or_praxis",
+    "cabinet médical": "healthcare.clinic_or_praxis",
+    "dentiste": "healthcare.dentist",
+    "opticien": "commercial.health_and_beauty.optician",
+    "vétérinaire": "healthcare.veterinary",
+    "salle de sport": "sport.fitness",
+    "piscine": "leisure.swimming_pool",
+    "club sportif": "sport",
+    "salon de coiffure": "commercial.health_and_beauty.hairdresser",
+    "institut de beauté": "commercial.health_and_beauty.beauty",
+    "spa": "leisure.spa",
+    "banque": "commercial.shopping.bank",
+    "agence immobilière": "commercial.real_estate",
+    "garage": "commercial.vehicle.car_repair",
+    "lavage auto": "commercial.vehicle.car_wash",
+    "station-service": "commercial.vehicle.fuel",
+    "concessionnaire": "commercial.vehicle.car_dealer",
+    "librairie": "commercial.books",
+    "bijouterie": "commercial.clothing.jewelry",
+    "vêtements": "commercial.clothing",
+    "chaussures": "commercial.clothing.shoes",
+    "meubles": "commercial.furniture_and_garden",
+    "informatique": "commercial.electronics",
+    "téléphonie": "commercial.electronics",
+    "fleuriste": "commercial.florist",
+}
 
 
-def search_foursquare(city: str, business_type: str, bbox: tuple) -> list:
-    """Search Foursquare Places API for businesses."""
+# ── Foursquare ────────────────────────────────────────────────────────────────
+
+def _search_foursquare(business_type: str, city: str, lat: float, lng: float) -> list:
     if not FOURSQUARE_KEY:
-        logger.warning("Foursquare API key not configured")
         return []
-
+    query = FOURSQUARE_QUERY_MAP.get(business_type, business_type)
     try:
-        south, west, north, east = bbox
-        category = _foursquare_tag(business_type)
-
-        response = requests.get(
+        res = requests.get(
             "https://api.foursquare.com/v3/places/search",
-            headers={
-                "Authorization": FOURSQUARE_KEY,
-                "Accept": "application/json",
-            },
+            headers={"Authorization": FOURSQUARE_KEY, "Accept": "application/json"},
             params={
-                "query": category,
+                "query": query,
                 "near": f"{city}, Tunisia",
                 "limit": 50,
+                "fields": "name,location,tel,website,social_media,hours,categories",
             },
-            timeout=settings.REQUEST_TIMEOUT,
+            timeout=TIMEOUT,
         )
-
-        if response.status_code != 200:
-            logger.warning("Foursquare returned %s", response.status_code)
-            return []
-
-        results = response.json().get("results", [])
-        businesses = []
-
-        for place in results:
-            name = place.get("name", "")
-            if not name:
-                continue
-
-            location = place.get("location", {})
-            geocodes = place.get("geocodes", {}).get("main", {})
-
-            businesses.append({
-                "name": name,
-                "category": category,
-                "lat": geocodes.get("latitude") or location.get("lat"),
-                "lng": geocodes.get("longitude") or location.get("lng"),
-                "address": ", ".join(location.get("formatted_address", [])) if isinstance(location.get("formatted_address"), list) else location.get("address", ""),
+        data = res.json()
+        results = []
+        for place in data.get("results", []):
+            loc = place.get("location", {})
+            address = ", ".join(filter(None, [
+                loc.get("address", ""),
+                loc.get("locality", ""),
+                loc.get("postcode", ""),
+            ]))
+            social = place.get("social_media", {})
+            results.append({
+                "name": place.get("name", ""),
+                "category": business_type,
+                "lat": loc.get("latitude"),
+                "lng": loc.get("longitude"),
+                "address": address,
                 "phone": place.get("tel", ""),
                 "website": place.get("website", ""),
-                "source": "foursquare",
+                "facebook": social.get("facebook_id", ""),
+                "instagram": social.get("instagram", ""),
+                "source": ["foursquare"],
             })
-
-        logger.info("Foursquare found %d businesses for '%s' in %s", len(businesses), business_type, city)
-        return businesses
-
-    except Exception as exc:
-        logger.exception("Foursquare search failed: %s", str(exc))
+        logger.info("Foursquare: %d results for '%s' in %s", len(results), business_type, city)
+        return results
+    except Exception as e:
+        logger.warning("Foursquare failed: %s", e)
         return []
 
 
-# ───────────────────────────────────────────────────────────────
-# HERE MAPS
-# ───────────────────────────────────────────────────────────────
+# ── TomTom ────────────────────────────────────────────────────────────────────
 
-def _here_category(business_type: str) -> str:
-    """Map French business type to HERE category."""
-    mapping = {
-        "restaurant": "restaurant",
-        "café": "cafe",
-        "fast food": "fast-food",
-        "boulangerie": "bakery",
-        "supermarché": "supermarket",
-        "hotel": "hotel",
-        "pharmacie": "pharmacy",
-        "clinique": "hospital",
-        "dentiste": "dentist",
-        "gym": "sports-facility",
-        "salon de coiffure": "hairdresser",
-        "centre esthétique": "beauty-salon",
-        "banque": "bank",
-        "école": "school",
-        "station service": "petrol-station",
-        "cinéma": "cinema",
-        "musée": "museum",
-        "centre commercial": "shopping-center",
-    }
-    return mapping.get(business_type, business_type)
-
-
-def search_here(city: str, business_type: str, bbox: tuple) -> list:
-    """Search HERE Maps API for businesses."""
-    if not HERE_KEY:
-        logger.warning("HERE API key not configured")
-        return []
-
-    try:
-        south, west, north, east = bbox
-        category = _here_category(business_type)
-
-        response = requests.get(
-            "https://discover.search.hereapi.com/v1/discover",
-            headers={
-                "Authorization": f"Bearer {HERE_KEY}",
-            },
-            params={
-                "q": category,
-                "in": f"circle:{ (north + south) / 2 },{ (east + west) / 2 };r=20000",
-                "limit": 50,
-            },
-            timeout=settings.REQUEST_TIMEOUT,
-        )
-
-        if response.status_code != 200:
-            logger.warning("HERE returned %s", response.status_code)
-            return []
-
-        items = response.json().get("items", [])
-        businesses = []
-
-        for item in items:
-            name = item.get("title", "")
-            if not name:
-                continue
-
-            position = item.get("position", {})
-            address = item.get("address", {})
-            contacts = item.get("contacts", [{}])[0] if item.get("contacts") else {}
-
-            businesses.append({
-                "name": name,
-                "category": category,
-                "lat": position.get("lat"),
-                "lng": position.get("lng"),
-                "address": address.get("label", ""),
-                "phone": " ".join(contacts.get("phone", [])) if isinstance(contacts.get("phone"), list) else contacts.get("phone", ""),
-                "website": " ".join(contacts.get("www", [])) if isinstance(contacts.get("www"), list) else contacts.get("www", ""),
-                "opening_hours": ", ".join(item.get("openingHours", {}).get("text", [])) if isinstance(item.get("openingHours", {}).get("text"), list) else "",
-                "source": "here",
-            })
-
-        logger.info("HERE found %d businesses for '%s' in %s", len(businesses), business_type, city)
-        return businesses
-
-    except Exception as exc:
-        logger.exception("HERE search failed: %s", str(exc))
-        return []
-
-
-# ───────────────────────────────────────────────────────────────
-# TOMTOM
-# ───────────────────────────────────────────────────────────────
-
-def _tomtom_category(business_type: str) -> str:
-    """Map French business type to TomTom category."""
-    mapping = {
-        "restaurant": "RESTAURANT",
-        "café": "CAFE",
-        "fast food": "FAST FOOD",
-        "boulangerie": "BAKERY",
-        "supermarché": "SUPERMARKET",
-        "hotel": "HOTEL",
-        "pharmacie": "PHARMACY",
-        "clinique": "HOSPITAL",
-        "dentiste": "DENTIST",
-        "gym": "HEALTH CLUB",
-        "salon de coiffure": "HAIR DRESSER",
-        "banque": "BANK",
-        "école": "SCHOOL",
-        "station service": "PETROL STATION",
-        "cinéma": "CINEMA",
-        "musée": "MUSEUM",
-        "centre commercial": "SHOPPING CENTER",
-    }
-    return mapping.get(business_type, business_type)
-
-
-def search_tomtom(city: str, business_type: str, bbox: tuple) -> list:
-    """Search TomTom API for businesses."""
+def _search_tomtom(business_type: str, city: str, lat: float, lng: float) -> list:
     if not TOMTOM_KEY:
-        logger.warning("TomTom API key not configured")
         return []
-
+    query = FOURSQUARE_QUERY_MAP.get(business_type, business_type)
     try:
-        south, west, north, east = bbox
-        category = _tomtom_category(business_type)
-
-        response = requests.get(
-            "https://api.tomtom.com/search/2/poiSearch/.json",
+        res = requests.get(
+            "https://api.tomtom.com/search/2/search/{}.json".format(
+                requests.utils.quote(f"{query} {city} Tunisia")
+            ),
             params={
                 "key": TOMTOM_KEY,
-                "query": category,
                 "countrySet": "TN",
-                "lat": (north + south) / 2,
-                "lon": (east + west) / 2,
-                "radius": 20000,
                 "limit": 50,
+                "lat": lat,
+                "lon": lng,
+                "radius": 10000,
             },
-            timeout=settings.REQUEST_TIMEOUT,
+            timeout=TIMEOUT,
         )
-
-        if response.status_code != 200:
-            logger.warning("TomTom returned %s", response.status_code)
-            return []
-
-        results = response.json().get("results", [])
-        businesses = []
-
-        for item in results:
-            poi = item.get("poi", {})
-            name = poi.get("name", "")
-            if not name:
-                continue
-
-            position = item.get("position", {})
-            address = item.get("address", {})
-
-            businesses.append({
-                "name": name,
-                "category": category,
-                "lat": position.get("lat"),
-                "lng": position.get("lon"),
-                "address": address.get("freeformAddress", ""),
-                "phone": poi.get("phone", ""),
+        data = res.json()
+        results = []
+        for r in data.get("results", []):
+            poi = r.get("poi", {})
+            addr = r.get("address", {})
+            pos = r.get("position", {})
+            phone = ""
+            if poi.get("phone"):
+                phone = poi["phone"]
+            results.append({
+                "name": poi.get("name", ""),
+                "category": business_type,
+                "lat": pos.get("lat"),
+                "lng": pos.get("lon"),
+                "address": addr.get("freeformAddress", ""),
+                "phone": phone,
                 "website": poi.get("url", ""),
-                "source": "tomtom",
+                "source": ["tomtom"],
             })
-
-        logger.info("TomTom found %d businesses for '%s' in %s", len(businesses), business_type, city)
-        return businesses
-
-    except Exception as exc:
-        logger.exception("TomTom search failed: %s", str(exc))
+        logger.info("TomTom: %d results for '%s' in %s", len(results), business_type, city)
+        return results
+    except Exception as e:
+        logger.warning("TomTom failed: %s", e)
         return []
 
 
-# ───────────────────────────────────────────────────────────────
-# GEOAPIFY
-# ───────────────────────────────────────────────────────────────
+# ── Geoapify ──────────────────────────────────────────────────────────────────
 
-def _geoapify_category(business_type: str) -> str:
-    """Map French business type to Geoapify category."""
-    mapping = {
-        "restaurant": "catering.restaurant",
-        "café": "catering.cafe",
-        "fast food": "catering.fast_food",
-        "boulangerie": "catering.bakery",
-        "supermarché": "commercial.supermarket",
-        "hotel": "accommodation.hotel",
-        "pharmacie": "healthcare.pharmacy",
-        "clinique": "healthcare.hospital",
-        "dentiste": "healthcare.dentist",
-        "opticien": "healthcare.optician",
-        "gym": "sport.fitness",
-        "salon de coiffure": "beauty.hairdresser",
-        "centre esthétique": "beauty.salon",
-        "spa": "beauty.spa",
-        "banque": "service.financial.bank",
-        "école": "education.school",
-        "station service": "service.vehicle.fuel",
-        "cinéma": "entertainment.cinema",
-        "musée": "entertainment.museum",
-        "centre commercial": "commercial.shopping_mall",
-        "garage": "service.vehicle.repair",
-        "librairie": "commercial.books",
-        "marché": "commercial.marketplace",
-    }
-    return mapping.get(business_type, business_type)
-
-
-def search_geoapify(city: str, business_type: str, bbox: tuple) -> list:
-    """Search Geoapify Places API for businesses."""
+def _search_geoapify(business_type: str, city: str, lat: float, lng: float) -> list:
     if not GEOAPIFY_KEY:
-        logger.warning("Geoapify API key not configured")
         return []
-
+    category = GEOAPIFY_CATEGORY_MAP.get(business_type, "")
+    if not category:
+        return []
     try:
-        south, west, north, east = bbox
-        category = _geoapify_category(business_type)
-
-        response = requests.get(
+        res = requests.get(
             "https://api.geoapify.com/v2/places",
             params={
-                "apiKey": GEOAPIFY_KEY,
                 "categories": category,
-                "filter": f"rect:{west},{south},{east},{north}",
+                "filter": f"circle:{lng},{lat},10000",
+                "bias": f"proximity:{lng},{lat}",
                 "limit": 50,
+                "apiKey": GEOAPIFY_KEY,
             },
-            timeout=settings.REQUEST_TIMEOUT,
+            timeout=TIMEOUT,
         )
-
-        if response.status_code != 200:
-            logger.warning("Geoapify returned %s", response.status_code)
-            return []
-
-        features = response.json().get("features", [])
-        businesses = []
-
-        for feature in features:
-            props = feature.get("properties", {})
-            name = props.get("name", "")
-            if not name:
-                continue
-
-            geometry = feature.get("geometry", {})
-            coords = geometry.get("coordinates", [None, None])
-
-            businesses.append({
-                "name": name,
-                "category": category,
-                "lat": coords[1] if len(coords) > 1 else None,
-                "lng": coords[0] if len(coords) > 0 else None,
-                "address": props.get("formatted", "") or props.get("address_line1", ""),
-                "phone": props.get("phone", ""),
+        data = res.json()
+        results = []
+        for feat in data.get("features", []):
+            props = feat.get("properties", {})
+            coords = feat.get("geometry", {}).get("coordinates", [None, None])
+            results.append({
+                "name": props.get("name", ""),
+                "category": business_type,
+                "lat": coords[1],
+                "lng": coords[0],
+                "address": props.get("formatted", ""),
+                "phone": props.get("contact", {}).get("phone", ""),
                 "website": props.get("website", ""),
-                "email": props.get("email", ""),
-                "facebook": props.get("facebook", ""),
-                "instagram": props.get("instagram", ""),
-                "opening_hours": props.get("opening_hours", ""),
-                "source": "geoapify",
+                "source": ["geoapify"],
             })
-
-        logger.info("Geoapify found %d businesses for '%s' in %s", len(businesses), business_type, city)
-        return businesses
-
-    except Exception as exc:
-        logger.exception("Geoapify search failed: %s", str(exc))
+        results = [r for r in results if r["name"]]
+        logger.info("Geoapify: %d results for '%s' in %s", len(results), business_type, city)
+        return results
+    except Exception as e:
+        logger.warning("Geoapify failed: %s", e)
         return []
 
 
-# ───────────────────────────────────────────────────────────────
-# ORCHESTRATOR
-# ───────────────────────────────────────────────────────────────
+# ── Orchestrator ──────────────────────────────────────────────────────────────
 
 def discover_multi_source(city: str, business_type: str, osm_results: list) -> dict:
-    """
-    Run all 4 external APIs in parallel.
-    Returns:
-        - all_results: list of all businesses found by external sources
-        - new_discoveries: businesses NOT in OSM results
-        - source_summary: counts per source
-    """
-    if city not in LOCATION_BBOX:
-        return {
-            "all_results": [],
-            "new_discoveries": [],
-            "source_summary": {},
-            "error": "Location not in bbox",
-        }
+    bbox = LOCATION_BBOX.get(city)
+    if bbox:
+        lat = (bbox[0] + bbox[2]) / 2
+        lng = (bbox[1] + bbox[3]) / 2
+    else:
+        lat, lng = 36.8, 10.18
 
-    bbox = LOCATION_BBOX[city]
+    bt = business_type.lower().strip()
 
-    all_external = []
-    source_summary = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        f_fsq = executor.submit(_search_foursquare, bt, city, lat, lng)
+        f_tom = executor.submit(_search_tomtom, bt, city, lat, lng)
+        f_geo = executor.submit(_search_geoapify, bt, city, lat, lng)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            executor.submit(search_foursquare, city, business_type, bbox): "foursquare",
-            executor.submit(search_here, city, business_type, bbox): "here",
-            executor.submit(search_tomtom, city, business_type, bbox): "tomtom",
-            executor.submit(search_geoapify, city, business_type, bbox): "geoapify",
-        }
+        fsq = f_fsq.result()
+        tom = f_tom.result()
+        geo = f_geo.result()
 
-        for future in as_completed(futures):
-            source_name = futures[future]
-            try:
-                results = future.result()
-                all_external.extend(results)
-                source_summary[source_name] = len(results)
-            except Exception as exc:
-                logger.exception("%s failed: %s", source_name, str(exc))
-                source_summary[source_name] = 0
-
-    logger.info(
-        "Multi-source: %d total from external APIs (%s)",
-        len(all_external),
-        ", ".join(f"{k}={v}" for k, v in source_summary.items()),
-    )
+    all_results = fsq + tom + geo
 
     return {
-        "all_results": all_external,
-        "source_summary": source_summary,
+        "all_results": all_results,
+        "source_summary": {
+            "foursquare": len(fsq),
+            "tomtom": len(tom),
+            "geoapify": len(geo),
+            "total": len(all_results),
+        },
     }
