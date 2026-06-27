@@ -8,6 +8,7 @@ from ddgs import DDGS
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.services.websocket_manager import manager
 
 logger = get_logger(__name__)
 
@@ -31,7 +32,7 @@ def get_headers():
 
 
 # ───────────────────────────────────────────────────────────────
-# SOURCE 1 : OpenStreetMap
+# SOURCE 1 : OpenStreetMap Nominatim
 # ───────────────────────────────────────────────────────────────
 
 def enrich_from_osm(lat, lng):
@@ -199,7 +200,7 @@ def enrich_from_pagesjaunes(name, city):
 # Parallel enrichment
 # ───────────────────────────────────────────────────────────────
 
-def enrich_business(business_id, name, city, lat, lng, on_complete=None):
+def enrich_business(business_id, name, city, lat, lng, session_id=None, on_complete=None):
 
     sources = [
         lambda: enrich_from_osm(lat, lng),
@@ -213,9 +214,12 @@ def enrich_business(business_id, name, city, lat, lng, on_complete=None):
         "facebook": None,
         "instagram": None,
         "phone": None,
+        "email": None,
         "address": None,
+        "opening_hours": None,
         "sources_used": [],
         "sources_failed": [],
+        "status": "ENRICHING",
     }
 
     with ThreadPoolExecutor(max_workers=settings.MAX_WORKERS) as executor:
@@ -239,11 +243,34 @@ def enrich_business(business_id, name, city, lat, lng, on_complete=None):
                 "facebook",
                 "instagram",
                 "phone",
+                "email",
                 "address",
+                "opening_hours",
             ):
                 if result.get(field) and not merged[field]:
                     merged[field] = result[field]
 
+    # Mark as fully enriched
+    merged["status"] = "ENRICHED"
+
+    # ── WebSocket push to frontend ──
+    if session_id:
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                manager.send_update(session_id, {
+                    "type": "enrichment_update",
+                    "business_id": business_id,
+                    "enrichment": merged,
+                })
+            )
+            loop.close()
+        except Exception as ws_exc:
+            logger.warning("WebSocket push failed for %s: %s", business_id, str(ws_exc))
+
+    # ── Callback to update database ──
     if on_complete:
         on_complete(business_id, merged)
 
@@ -261,6 +288,7 @@ def enrich_in_background(
     lat,
     lng,
     on_complete,
+    session_id=None,
 ):
     thread = threading.Thread(
         target=enrich_business,
@@ -270,6 +298,7 @@ def enrich_in_background(
             city,
             lat,
             lng,
+            session_id,
             on_complete,
         ),
         daemon=True,

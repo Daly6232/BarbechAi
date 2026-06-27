@@ -30,9 +30,42 @@ export default function SearchPage() {
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+
         if (data.type === "enrichment_update") {
           setResults(prev => prev.map(r =>
-            r.id === data.business_id ? { ...r, ...data.enrichment, status: "ENRICHED" } : r
+            r.id === data.business_id
+              ? { ...r, ...data.enrichment, status: data.enrichment.status || "ENRICHED" }
+              : r
+          ));
+        }
+
+        if (data.type === "new_discovery") {
+          setResults(prev => {
+            const exists = prev.find(r => r.id === data.business.id);
+            if (exists) {
+              return prev.map(r =>
+                r.id === data.business.id
+                  ? { ...r, ...data.business, is_new_discovery: true }
+                  : r
+              );
+            }
+            return [...prev, { ...data.business, is_new_discovery: true }];
+          });
+        }
+
+        if (data.type === "confidence_update") {
+          setResults(prev => prev.map(r =>
+            r.id === data.business_id
+              ? { ...r, confidence: data.confidence, sources_used: data.sources_used }
+              : r
+          ));
+        }
+
+        if (data.type === "conflict_detected") {
+          setResults(prev => prev.map(r =>
+            r.id === data.business_id
+              ? { ...r, has_conflicts: true, conflict_fields: data.conflict_fields || [] }
+              : r
           ));
         }
       } catch {}
@@ -59,6 +92,7 @@ export default function SearchPage() {
   const high = results.filter(r => r.score >= 71).length;
   const medium = results.filter(r => r.score >= 41 && r.score < 71).length;
   const low = results.filter(r => r.score < 41).length;
+  const newDiscoveries = results.filter(r => r.is_new_discovery).length;
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
@@ -124,6 +158,12 @@ export default function SearchPage() {
               <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
             </div>
           ))}
+          {newDiscoveries > 0 && (
+            <div key="new" style={{ background: "#0f0f0f", border: "1px solid #22c55e33", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+              <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: "#22c55e" }}>{newDiscoveries}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e", letterSpacing: 2 }}>NEW</div>
+            </div>
+          )}
           <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444", alignSelf: "center", marginLeft: 8 }}>
             {results.filter(r => r.status === "ENRICHED").length}/{results.length} enriched
           </div>
@@ -137,21 +177,67 @@ export default function SearchPage() {
             style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderLeft: `3px solid ${scoreColor(biz.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", marginBottom: 2 }}>{biz.name}</div>
+                {/* Name + Badges */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0" }}>{biz.name}</span>
+                  {biz.is_new_discovery && (
+                    <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e", border: "1px solid #22c55e44", padding: "1px 5px", borderRadius: 3 }}>
+                      🆕
+                    </span>
+                  )}
+                  {biz.has_conflicts && (
+                    <span style={{ fontFamily: "monospace", fontSize: 9, color: "#f5a623", border: "1px solid #f5a62344", padding: "1px 5px", borderRadius: 3 }}>
+                      ⚠
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 4 }}>
                   {biz.category?.toUpperCase()} · {biz.city}
                 </div>
                 {biz.address && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444", marginBottom: 2 }}>📍 {biz.address}</div>}
                 {biz.phone && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#4a9eff", marginBottom: 4 }}>📞 {biz.phone}</div>}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-                  {biz.website && <span style={tagStyle("#4a9eff")}>🌐 WEB</span>}
-                  {biz.facebook && <span style={tagStyle("#1877f2")}>📘 FB</span>}
-                  {biz.instagram && <span style={tagStyle("#e1306c")}>📸 IG</span>}
-                  {biz.email && <span style={tagStyle("#22c55e")}>✉ EMAIL</span>}
-                  {biz.opening_hours && <span style={tagStyle("#f5a623")}>🕐 HOURS</span>}
+
+                {/* ── SOCIAL MATRIX ── */}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6, marginTop: 2 }}>
+                  <SocialBadge
+                    icon="🌐"
+                    label="WWW"
+                    present={!!biz.website}
+                    color="#4a9eff"
+                  />
+                  <SocialBadge
+                    icon="📘"
+                    label="FB"
+                    present={!!biz.facebook}
+                    color="#1877f2"
+                  />
+                  <SocialBadge
+                    icon="📸"
+                    label="IG"
+                    present={!!biz.instagram}
+                    color="#e1306c"
+                  />
+                  <SocialBadge
+                    icon="✉"
+                    label="EMAIL"
+                    present={!!biz.email}
+                    color="#22c55e"
+                  />
                 </div>
-                <div style={{ fontFamily: "monospace", fontSize: 9, color: biz.status === "ENRICHED" ? "#22c55e" : "#f5a623" }}>
-                  {biz.status === "ENRICHED" ? "✓ ENRICHED" : "⟳ ENRICHING..."}
+
+                {/* Status + Confidence */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 9, color: biz.status === "ENRICHED" ? "#22c55e" : biz.status === "ENRICHING" ? "#f5a623" : "#4a9eff" }}>
+                    {biz.status === "ENRICHED" ? "✓ ENRICHED" : biz.status === "ENRICHING" ? "⟳ ENRICHING..." : `● ${biz.status || "NEW"}`}
+                  </div>
+                  {biz.confidence > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 40, height: 3, background: "#1a1a1a", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${biz.confidence}%`, background: biz.confidence >= 70 ? "#22c55e" : biz.confidence >= 40 ? "#f5a623" : "#ef4444", borderRadius: 2 }} />
+                      </div>
+                      <span style={{ fontFamily: "monospace", fontSize: 8, color: "#444" }}>{biz.confidence}%</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
@@ -172,6 +258,23 @@ export default function SearchPage() {
   );
 }
 
+function SocialBadge({ icon, label, present, color }) {
+  return (
+    <span style={{
+      fontFamily: "monospace",
+      fontSize: 9,
+      color: present ? color : "#333",
+      border: `1px solid ${present ? color + "44" : "#1a1a1a"}`,
+      padding: "2px 6px",
+      borderRadius: 3,
+      background: present ? color + "11" : "transparent",
+      textDecoration: present ? "none" : "line-through",
+      opacity: present ? 1 : 0.5,
+    }}>
+      {icon} {label}
+    </span>
+  );
+}
+
 const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
 const selectStyle = { width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 5, color: "#f0f0f0", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
-const tagStyle = (color) => ({ fontFamily: "monospace", fontSize: 9, color, border: `1px solid ${color}33`, padding: "2px 6px", borderRadius: 3, background: `${color}11` });
