@@ -12,9 +12,10 @@ from app.services.multi_source import discover_multi_source
 from app.services.reconciliation import reconcile
 from app.services.websocket_manager import manager
 from app.database import SessionLocal, Business, Enrichment, Lead
+from app.core.logging import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
-
 MAX_RESULTS = 100
 
 
@@ -43,7 +44,6 @@ def on_enrichment_complete(business_id, enrichment_data):
                 opening_hours=enrichment_data.get("opening_hours"),
             )
             db.add(db_enrich)
-
         lead = db.query(Lead).filter(Lead.business_id == business_id).first()
         if lead:
             lead.status = "ENRICHED"
@@ -55,7 +55,6 @@ def on_enrichment_complete(business_id, enrichment_data):
 
 
 def _get_saved_business_names(db, city: str, category: str) -> set:
-    """Return case-insensitive set of business names already saved for this city + category."""
     try:
         existing = db.query(Business.name).filter(
             Business.city == city,
@@ -66,14 +65,16 @@ def _get_saved_business_names(db, city: str, category: str) -> set:
         return set()
 
 
-def _write_business_to_db(db, biz: dict, city: str, status: str = "NEW") -> dict:
-    """Write a single business + enrichment + lead to DB. Returns the API-safe dict."""
+def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: str = "NEW") -> dict:
     biz_id = str(uuid.uuid4())
+
+    # Always use the French business type as category, not the OSM tag
+    category = business_type
 
     db_biz = Business(
         id=biz_id,
         name=biz["name"],
-        category=biz.get("category", ""),
+        category=category,
         city=city,
         address=biz.get("address", ""),
         lat=biz.get("lat"),
@@ -108,7 +109,7 @@ def _write_business_to_db(db, biz: dict, city: str, status: str = "NEW") -> dict
     return {
         "id": biz_id,
         "name": biz["name"],
-        "category": biz.get("category", ""),
+        "category": category,
         "city": city,
         "address": biz.get("address", ""),
         "phone": biz.get("phone", ""),
@@ -129,7 +130,7 @@ def _write_business_to_db(db, biz: dict, city: str, status: str = "NEW") -> dict
         "has_address": score_data["has_address"],
         "status": status,
         "source": biz.get("source", []),
-        "sources_used": biz.get("sources_used", [biz.get("source", "osm")]),
+        "sources_used": biz.get("sources_used", ["osm"]),
         "confidence": biz.get("confidence", 100),
         "has_conflicts": biz.get("has_conflicts", False),
         "conflict_fields": biz.get("conflict_fields", []),
@@ -138,81 +139,63 @@ def _write_business_to_db(db, biz: dict, city: str, status: str = "NEW") -> dict
 
 
 def _run_phase_two(city: str, business_type: str, osm_results: list, session_id: str):
-    """
-    Background: Run multi-source discovery, reconciliation, DB writes, and WebSocket pushes.
-    """
     import asyncio
-
     db = SessionLocal()
     try:
-        # 1. Multi-source search
         ms_result = discover_multi_source(city, business_type, osm_results)
         all_external = ms_result.get("all_results", [])
 
         if not all_external:
             return
 
-        # 2. Reconcile with OSM results
         recon = reconcile(osm_results, all_external)
         merged = recon.get("merged", [])
         new_discoveries = recon.get("new_discoveries", [])
 
-        # 3. Process merged (existing OSM + enriched data)
         for biz in merged:
             if biz.get("has_conflicts"):
-                # Push conflict alert via WebSocket
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(
-                        manager.send_update(session_id, {
-                            "type": "conflict_detected",
-                            "business_id": biz.get("id", ""),
-                            "business_name": biz.get("name", ""),
-                            "conflict_fields": biz.get("conflict_fields", []),
-                        })
-                    )
+                    loop.run_until_complete(manager.send_update(session_id, {
+                        "type": "conflict_detected",
+                        "business_id": biz.get("id", ""),
+                        "business_name": biz.get("name", ""),
+                        "conflict_fields": biz.get("conflict_fields", []),
+                    }))
                     loop.close()
                 except Exception:
                     pass
 
-            # Push confidence update
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    manager.send_update(session_id, {
-                        "type": "confidence_update",
-                        "business_id": biz.get("id", ""),
-                        "business_name": biz.get("name", ""),
-                        "confidence": biz.get("confidence", 100),
-                        "sources_used": biz.get("sources_used", []),
-                    })
-                )
+                loop.run_until_complete(manager.send_update(session_id, {
+                    "type": "confidence_update",
+                    "business_id": biz.get("id", ""),
+                    "business_name": biz.get("name", ""),
+                    "confidence": biz.get("confidence", 100),
+                    "sources_used": biz.get("sources_used", []),
+                }))
                 loop.close()
             except Exception:
                 pass
 
-        # 4. Write new discoveries to DB and push to frontend
         for biz in new_discoveries:
-            biz_result = _write_business_to_db(db, biz, city, status="NEW")
+            biz_result = _write_business_to_db(db, biz, city, business_type, status="NEW")
             db.commit()
 
-            # Push new discovery via WebSocket
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    manager.send_update(session_id, {
-                        "type": "new_discovery",
-                        "business": biz_result,
-                    })
-                )
+                loop.run_until_complete(manager.send_update(session_id, {
+                    "type": "new_discovery",
+                    "business": biz_result,
+                }))
                 loop.close()
             except Exception:
                 pass
 
-            # Start enrichment for new business
             enrich_in_background(
                 biz_result["id"],
                 biz["name"],
@@ -230,14 +213,8 @@ def _run_phase_two(city: str, business_type: str, osm_results: list, session_id:
         db.close()
 
 
-# Need logger for the background thread
-from app.core.logging import get_logger
-logger = get_logger(__name__)
-
-
 @router.get("/discover")
 def discover(city: str, business_type: str = "restaurant", session_id: str = "default"):
-    # ── Phase 1: OSM Overpass (fast, synchronous) ──
     raw = discover_businesses(city, business_type)
 
     if isinstance(raw, dict) and "error" in raw:
@@ -260,23 +237,22 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
         random.shuffle(scored_businesses)
         selected = scored_businesses[:MAX_RESULTS]
 
-        # Write to DB and build response
         for b in selected:
             b["sources_used"] = ["osm"]
             b["confidence"] = 100
             b["has_conflicts"] = False
             b["conflict_fields"] = []
             b["is_new_discovery"] = False
-            result = _write_business_to_db(db, b, city, status="NEW")
+            result = _write_business_to_db(db, b, city, business_type, status="NEW")
             results.append(result)
 
         db.commit()
 
-        # ── Phase 2: Multi-source discovery (background) ──
+        # Phase 2: Multi-source (background)
         osm_for_recon = [
             {
                 "name": b["name"],
-                "category": b.get("category", business_type),
+                "category": business_type,
                 "lat": b.get("lat"),
                 "lng": b.get("lng"),
                 "address": b.get("address", ""),
@@ -297,7 +273,7 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
         )
         thread.start()
 
-        # ── Phase 3: Enrichment for OSM results (background) ──
+        # Phase 3: Enrichment (background)
         for i, b in enumerate(selected):
             enrich_in_background(
                 results[i]["id"],
