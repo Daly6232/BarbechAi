@@ -18,6 +18,8 @@ class Settings:
     HERE_API_KEY = os.getenv("HERE_API_KEY", "")
     GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "")
     TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
+    LOCATIONIQ_API_KEY = os.getenv("LOCATIONIQ_API_KEY", "")
+    OPENCAGE_API_KEY = os.getenv("OPENCAGE_API_KEY", "")
 
     # Networking
     REQUEST_TIMEOUT = 10
