@@ -179,7 +179,7 @@ def enrich_from_pagesjaunes(name, city):
     try:
         query = f"{name} {city}".replace(" ", "+")
         res = requests.get(
-            f"https://www.pagesjaunes.tn/search?q={query}",
+            f"https://www.pagesjaunes.com.tn/search?q={query}",
             headers=get_headers(),
             timeout=settings.REQUEST_TIMEOUT,
         )
