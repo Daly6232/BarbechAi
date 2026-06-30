@@ -197,7 +197,7 @@ def reconcile(osm_results: List[Dict[str, Any]], multi_source_results: List[Dict
                 new_discoveries[ext_matched] = _merge_businesses(new_discoveries[ext_matched], ext_biz)
             else:
                 # Brand new business
-                ext_biz["sources_used"] = [ext_biz.get("source", "unknown")]
+                ext_biz["sources_used"] = ext_biz.get("source", ["unknown"]) if isinstance(ext_biz.get("source"), list) else [ext_biz.get("source", "unknown")]
                 ext_biz["conflict_fields"] = []
                 ext_biz["has_conflicts"] = False
                 ext_biz["is_new_discovery"] = True
