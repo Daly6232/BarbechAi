@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
-const API = "https://barbechai-backend.onrender.com";
+import { API } from "../config";
 
 const scoreColor = (s) => s >= 71 ? "#ff4d00" : s >= 41 ? "#f5a623" : "#4a9eff";
 const scoreLabel = (s) => s >= 71 ? "HIGH" : s >= 41 ? "MEDIUM" : "LOW";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API = "https://barbechai-backend.onrender.com";
+import { API } from "../config";
 
 export default function ExportPage() {
   const [leads, setLeads] = useState([]);

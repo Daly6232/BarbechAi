@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 import { TUNISIA_DATA, GOVERNORATES, BUSINESS_TYPES } from "../data/tunisia";
 
-const API = "https://barbechai-backend.onrender.com";
+import { API, WS_BASE } from "../config";
 
 const scoreColor = (s) => s >= 71 ? "#ff4d00" : s >= 41 ? "#f5a623" : "#4a9eff";
 const scoreLabel = (s) => s >= 71 ? "HIGH" : s >= 41 ? "MEDIUM" : "LOW";
@@ -36,7 +36,7 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    const ws = new WebSocket(`wss://barbechai-backend.onrender.com/ws/${sessionId}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/${sessionId}`);
     wsRef.current = ws;
 
     ws.onmessage = (e) => {

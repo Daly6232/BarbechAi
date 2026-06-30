@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
-const API = "https://barbechai-backend.onrender.com";
+import { API } from "../config";
 
 const CRM_STAGES = [
   { key: "NEW", label: "New", color: "#555" },

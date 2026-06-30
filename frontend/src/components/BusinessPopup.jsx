@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API = "https://barbechai-backend.onrender.com";
+import { API } from "../config";
 
 const sourceColors = {
   osm: "#22c55e",
