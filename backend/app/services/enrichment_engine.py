@@ -31,6 +31,8 @@ BLACKLIST = [
 ]
 
 FOURSQUARE_KEY = settings.FOURSQUARE_API_KEY
+LOCATIONIQ_KEY = settings.LOCATIONIQ_API_KEY
+OPENCAGE_KEY = settings.OPENCAGE_API_KEY
 
 
 def get_headers():
@@ -70,7 +72,7 @@ def is_valid_instagram(url: str) -> bool:
     return True
 
 
-# ─── SOURCE 1: Nominatim ─────────────────────────────────────────────────────
+# ─── SOURCE 1: Nominatim (free reverse geocoding) ────────────────────────────
 
 def enrich_from_osm(lat, lng):
     try:
@@ -143,7 +145,6 @@ def enrich_from_duckduckgo(name, city):
     try:
         results = {}
         with DDGS() as ddgs:
-            # Website
             web = list(ddgs.text(f'"{name}" "{city}" Tunisie site officiel', max_results=5))
             for r in web:
                 url = r.get("href", "")
@@ -151,7 +152,6 @@ def enrich_from_duckduckgo(name, city):
                     results["website"] = url
                     break
 
-            # Facebook
             fb = list(ddgs.text(f'"{name}" "{city}" site:facebook.com', max_results=5))
             for r in fb:
                 url = r.get("href", "")
@@ -159,7 +159,6 @@ def enrich_from_duckduckgo(name, city):
                     results["facebook"] = url
                     break
 
-            # Instagram
             ig = list(ddgs.text(f'"{name}" "{city}" site:instagram.com', max_results=5))
             for r in ig:
                 url = r.get("href", "")
@@ -194,6 +193,57 @@ def enrich_from_pagesjaunes(name, city):
         return {"source": "pagesjaunes", "error": "timeout"}
 
 
+# ─── SOURCE 5: LocationIQ (reverse geocoding) ────────────────────────────────
+
+def enrich_from_locationiq(lat, lng):
+    try:
+        if not LOCATIONIQ_KEY or not lat or not lng:
+            return {"source": "locationiq", "error": "no_key_or_coords"}
+        res = requests.get(
+            "https://us1.locationiq.com/v1/reverse",
+            params={
+                "key": LOCATIONIQ_KEY,
+                "lat": lat,
+                "lon": lng,
+                "format": "json",
+            },
+            timeout=settings.REQUEST_TIMEOUT,
+        )
+        data = res.json()
+        addr = data.get("display_name", "")
+        return {"source": "locationiq", "address": addr}
+    except Exception as e:
+        logger.warning(f"LocationIQ failed: {e}")
+        return {"source": "locationiq", "error": "timeout"}
+
+
+# ─── SOURCE 6: OpenCage (reverse geocoding) ──────────────────────────────────
+
+def enrich_from_opencage(lat, lng):
+    try:
+        if not OPENCAGE_KEY or not lat or not lng:
+            return {"source": "opencage", "error": "no_key_or_coords"}
+        res = requests.get(
+            "https://api.opencagedata.com/geocode/v1/json",
+            params={
+                "key": OPENCAGE_KEY,
+                "q": f"{lat}+{lng}",
+                "language": "fr",
+                "limit": 1,
+            },
+            timeout=settings.REQUEST_TIMEOUT,
+        )
+        data = res.json()
+        results = data.get("results", [])
+        if not results:
+            return {"source": "opencage", "error": "no_results"}
+        addr = results[0].get("formatted", "")
+        return {"source": "opencage", "address": addr}
+    except Exception as e:
+        logger.warning(f"OpenCage failed: {e}")
+        return {"source": "opencage", "error": "timeout"}
+
+
 # ─── PARALLEL ENRICHMENT ──────────────────────────────────────────────────────
 
 def enrich_business(business_id, name, city, lat, lng, session_id=None, on_complete=None):
@@ -202,6 +252,8 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
         lambda: enrich_from_foursquare(name, city),
         lambda: enrich_from_duckduckgo(name, city),
         lambda: enrich_from_pagesjaunes(name, city),
+        lambda: enrich_from_locationiq(lat, lng),
+        lambda: enrich_from_opencage(lat, lng),
     ]
 
     merged = {
@@ -211,7 +263,7 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
         "status": "ENRICHED",
     }
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {executor.submit(fn): fn for fn in sources}
         for future in as_completed(futures):
             result = future.result()
