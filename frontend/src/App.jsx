@@ -1,14 +1,74 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import LoginPage from "./pages/LoginPage";
 import SearchPage from "./pages/SearchPage";
 import LeadsPage from "./pages/LeadsPage";
 import CRMPage from "./pages/CRMPage";
 import AgentPage from "./pages/AgentPage";
 import ExportPage from "./pages/ExportPage";
 
-const PAGES = ["Search", "Leads", "CRM", "Agent", "Export"];
+// Which tabs each role can see
+const ROLE_PAGES = {
+  master_admin: ["Search", "Leads", "CRM", "Agent", "Export"],
+  admin: ["Search", "Leads", "CRM", "Agent", "Export"],
+  back_office: ["Leads", "CRM"],
+  field_agent: ["Agent"],
+};
 
 export default function App() {
-  const [page, setPage] = useState("Search");
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [page, setPage] = useState(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("barbechai_token");
+    const savedUser = localStorage.getItem("barbechai_user");
+    if (savedToken && savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setToken(savedToken);
+        setUser(parsedUser);
+        const pages = ROLE_PAGES[parsedUser.role] || [];
+        setPage(pages[0] || null);
+      } catch {}
+    }
+    setChecking(false);
+  }, []);
+
+  const handleLogin = (loggedInUser, loggedInToken) => {
+    setUser(loggedInUser);
+    setToken(loggedInToken);
+    const pages = ROLE_PAGES[loggedInUser.role] || [];
+    setPage(pages[0] || null);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("barbechai_token");
+    localStorage.removeItem("barbechai_user");
+    setUser(null);
+    setToken(null);
+    setPage(null);
+  };
+
+  if (checking) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "monospace", fontSize: 12, color: "#444" }}>Chargement...</div>
+      </div>
+    );
+  }
+
+  if (!user || !token) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  const visiblePages = ROLE_PAGES[user.role] || [];
+  const roleLabel = {
+    master_admin: "MASTER ADMIN",
+    admin: "ADMIN",
+    back_office: "BACK OFFICE",
+    field_agent: "AGENT TERRAIN",
+  }[user.role] || user.role;
 
   return (
     <div style={{ minHeight: "100vh", background: "#080808", color: "#f0f0f0", fontFamily: "'Inter', sans-serif" }}>
@@ -29,8 +89,9 @@ export default function App() {
             <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>TUNISIA BUSINESS INTELLIGENCE</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {PAGES.map(p => (
+
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+          {visiblePages.map(p => (
             <button key={p} onClick={() => setPage(p)} style={{
               background: page === p ? "#ff4d00" : "transparent",
               color: page === p ? "#fff" : "#555",
@@ -40,15 +101,30 @@ export default function App() {
               cursor: "pointer", letterSpacing: 1,
             }}>{p.toUpperCase()}</button>
           ))}
+
+          <div style={{ width: 1, height: 20, background: "#1e1e1e", margin: "0 6px" }} />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#f0f0f0" }}>{user.name}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 8, color: "#ff4d00", letterSpacing: 1 }}>{roleLabel}</div>
+            </div>
+            <button onClick={handleLogout} style={{
+              background: "transparent", border: "1px solid #333", color: "#888",
+              borderRadius: 4, padding: "5px 10px", fontFamily: "monospace", fontSize: 10, cursor: "pointer",
+            }}>
+              ↪ SORTIR
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Pages */}
-      {page === "Search" && <SearchPage />}
-      {page === "Leads" && <LeadsPage />}
-      {page === "CRM" && <CRMPage />}
-      {page === "Agent" && <AgentPage />}
-      {page === "Export" && <ExportPage />}
+      {page === "Search" && visiblePages.includes("Search") && <SearchPage />}
+      {page === "Leads" && visiblePages.includes("Leads") && <LeadsPage />}
+      {page === "CRM" && visiblePages.includes("CRM") && <CRMPage />}
+      {page === "Agent" && visiblePages.includes("Agent") && <AgentPage />}
+      {page === "Export" && visiblePages.includes("Export") && <ExportPage />}
     </div>
   );
 }
