@@ -7,6 +7,7 @@ from app.api.agents import router as agent_router
 from app.api.crm import router as crm_router
 from app.api.discover import router as discover_router
 from app.api.ws import router as ws_router
+from app.api.auth import router as auth_router
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import init_db
@@ -40,6 +41,7 @@ app.include_router(discover_router)
 app.include_router(crm_router)
 app.include_router(agent_router)
 app.include_router(ws_router)
+app.include_router(auth_router)
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

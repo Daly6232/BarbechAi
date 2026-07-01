@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Boolean,
     create_engine,
 )
 from sqlalchemy.orm import (
@@ -32,6 +33,26 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="back_office")
+    # roles: master_admin, admin, back_office, field_agent
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime)
+
+    activities = relationship(
+        "AgentActivity",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class Business(Base):
@@ -100,29 +121,41 @@ class Lead(Base):
     score = Column(Integer)
     opportunity_level = Column(String)
     status = Column(String, default="NEW")
-    assigned_agent = Column(String)
-    assigned_agent_name = Column(String)
+    # status: NEW, CONFIRMED, APPOINTMENT_SET, CALLBACK_SET (back office)
+    # PENDING_MEETING, MEETING_COMPLETED, PROPOSAL_SENT, NEGOTIATION,
+    # CONTRACT_SENT, CLOSED_WON, CLOSED_LOST, FOLLOW_UP (field agent)
+
     in_crm = Column(String, default="false")
     crm_status = Column(String, default="NEW")
     crm_notes = Column(Text)
+
+    # Back Office fields
+    confirmed_by = Column(String)
+    confirmed_at = Column(DateTime)
+    callback_date = Column(DateTime)
+    client_requests = Column(Text)
+
+    # Assignment
+    assigned_back_office = Column(String)
+    assigned_field_agent = Column(String)
+    assigned_agent_name = Column(String)
+
+    # Appointment
+    appointment_date = Column(DateTime)
+    appointment_location = Column(String)
+
+    # Field Agent / Deal fields
+    meeting_completed_at = Column(DateTime)
+    proposal_sent_at = Column(DateTime)
+    contract_sent_at = Column(DateTime)
+    deal_value = Column(Float)
+    decline_reason = Column(Text)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship(
         "Business",
         back_populates="leads",
-    )
-
-    pipeline = relationship(
-        "CRMPipeline",
-        back_populates="lead",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-
-    activities = relationship(
-        "AgentActivity",
-        back_populates="lead",
-        cascade="all, delete-orphan",
     )
 
     pipeline = relationship(
@@ -167,6 +200,7 @@ class AgentActivity(Base):
     id = Column(String, primary_key=True)
 
     agent_id = Column(String)
+    user_id = Column(String, ForeignKey("users.id"))
 
     lead_id = Column(
         String,
@@ -180,6 +214,11 @@ class AgentActivity(Base):
 
     lead = relationship(
         "Lead",
+        back_populates="activities",
+    )
+
+    user = relationship(
+        "User",
         back_populates="activities",
     )
 

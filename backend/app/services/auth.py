@@ -1,0 +1,154 @@
+import os
+import bcrypt
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
+
+from app.core.logging import get_logger
+from app.core.security import generate_uuid
+from app.database import SessionLocal, User
+
+logger = get_logger(__name__)
+
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "barbechai-dev-secret-change-in-production-8f3a9c2e")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = 12
+
+VALID_ROLES = ["master_admin", "admin", "back_office", "field_agent"]
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(password.encode(), password_hash.encode())
+    except Exception:
+        return False
+
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "role": role,
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_access_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError as e:
+        logger.warning(f"Token decode failed: {e}")
+        return None
+
+
+def register_user(email: str, password: str, name: str, role: str, created_by_role: str = None):
+    """Register a new user. Only master_admin can create admin accounts.
+    Only admin/master_admin can create back_office/field_agent accounts."""
+    if role not in VALID_ROLES:
+        return {"error": f"Invalid role. Must be one of: {VALID_ROLES}"}
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            return {"error": "Email already registered"}
+
+        user = User(
+            id=generate_uuid(),
+            email=email,
+            password_hash=hash_password(password),
+            name=name,
+            role=role,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        return {"success": True, "user_id": user.id, "email": email, "role": role}
+    except Exception as e:
+        db.rollback()
+        logger.exception(e)
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+def login_user(email: str, password: str):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not user.is_active:
+            return {"error": "Invalid credentials"}
+
+        if not verify_password(password, user.password_hash):
+            return {"error": "Invalid credentials"}
+
+        user.last_login = datetime.utcnow()
+        db.commit()
+
+        token = create_access_token(user.id, user.email, user.role)
+        return {
+            "success": True,
+            "token": token,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+            },
+        }
+    except Exception as e:
+        db.rollback()
+        logger.exception(e)
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+def get_current_user(token: str):
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == payload.get("sub")).first()
+        if not user or not user.is_active:
+            return None
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        }
+    finally:
+        db.close()
+
+
+def list_agents(requester_role: str):
+    """Admin/master_admin can view all agents."""
+    if requester_role not in ["admin", "master_admin"]:
+        return {"error": "Insufficient permissions"}
+
+    db = SessionLocal()
+    try:
+        users = db.query(User).filter(User.role.in_(["back_office", "field_agent"])).all()
+        return {
+            "agents": [
+                {
+                    "id": u.id,
+                    "email": u.email,
+                    "name": u.name,
+                    "role": u.role,
+                    "is_active": u.is_active,
+                    "last_login": u.last_login.isoformat() if u.last_login else None,
+                }
+                for u in users
+            ]
+        }
+    finally:
+        db.close()
