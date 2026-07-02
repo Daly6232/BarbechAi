@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { API } from "../config";
 
@@ -11,6 +11,8 @@ const sourceColors = {
   duckduckgo: "#f97316",
   pagesjaunes: "#ec4899",
   nominatim: "#14b8a6",
+  locationiq: "#06b6d4",
+  opencage: "#84cc16",
 };
 
 export default function BusinessPopup({ biz, onClose }) {
@@ -25,6 +27,17 @@ export default function BusinessPopup({ biz, onClose }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
+
+  // Sync fields whenever the underlying business data changes
+  // (e.g. WebSocket enrichment_update arrives while popup is open)
+  useEffect(() => {
+    setPhone(biz.phone || "");
+    setWebsite(biz.website || "");
+    setFacebook(biz.facebook || "");
+    setInstagram(biz.instagram || "");
+    setEmail(biz.email || "");
+    setAddress(biz.address || "");
+  }, [biz.id, biz.phone, biz.website, biz.facebook, biz.instagram, biz.email, biz.address]);
 
   const scoreColor = biz.score >= 71 ? "#ff4d00" : biz.score >= 41 ? "#f5a623" : "#4a9eff";
   const scoreLabel = biz.score >= 71 ? "HIGH" : biz.score >= 41 ? "MEDIUM" : "LOW";
