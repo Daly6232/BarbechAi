@@ -7,6 +7,10 @@ class Settings:
     APP_VERSION = "1.0.0"
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
+    # Auto-detect Termux (local phone testing) to disable Rust-based
+    # libraries (ddgs) that crash on Android due to missing NDK context.
+    IS_TERMUX = "com.termux" in os.getenv("PREFIX", "") or os.path.exists("/data/data/com.termux")
+
     # Database
     DATABASE_URL = os.getenv(
         "DATABASE_URL",

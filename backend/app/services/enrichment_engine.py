@@ -142,6 +142,9 @@ def enrich_from_foursquare(name, city):
 # ─── SOURCE 3: DuckDuckGo ─────────────────────────────────────────────────────
 
 def enrich_from_duckduckgo(name, city):
+    if settings.IS_TERMUX:
+        return {"source": "duckduckgo", "error": "disabled_on_termux"}
+
     try:
         results = {}
         with DDGS() as ddgs:
