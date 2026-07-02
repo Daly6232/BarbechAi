@@ -35,7 +35,7 @@ def _build_lead_dict(lead, business, enrichment):
         "in_crm": lead.in_crm,
         "crm_status": lead.crm_status or "NEW",
         "crm_notes": lead.crm_notes or "",
-        "assigned_agent": lead.assigned_agent or "",
+        "assigned_agent": lead.assigned_field_agent or lead.assigned_back_office or "",
         "assigned_agent_name": lead.assigned_agent_name or "",
         "created_at": lead.created_at.isoformat() if lead.created_at else "",
     }
