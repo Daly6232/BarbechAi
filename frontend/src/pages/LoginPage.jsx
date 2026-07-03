@@ -39,7 +39,7 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#080808", color: "#f0f0f0",
+      minHeight: "100vh", background: "#161616", color: "#f0f0f0",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'Inter', sans-serif", padding: 20,
     }}>
@@ -58,7 +58,7 @@ export default function LoginPage({ onLogin }) {
           </div>
         </div>
 
-        <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 10, padding: 28 }}>
+        <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 10, padding: 28 }}>
           <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 2, marginBottom: 20, textAlign: "center" }}>
             CONNEXION
           </div>
@@ -71,7 +71,7 @@ export default function LoginPage({ onLogin }) {
               onChange={e => setEmail(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="votre@email.com"
-              style={{ width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 6, color: "#f0f0f0", padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
+              style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 6, color: "#f0f0f0", padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
             />
           </div>
 
@@ -83,7 +83,7 @@ export default function LoginPage({ onLogin }) {
               onChange={e => setPassword(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="••••••••"
-              style={{ width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 6, color: "#f0f0f0", padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
+              style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 6, color: "#f0f0f0", padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
             />
           </div>
 

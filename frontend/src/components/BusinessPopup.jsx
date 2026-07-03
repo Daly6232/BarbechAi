@@ -75,7 +75,7 @@ export default function BusinessPopup({ biz, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: "#0f0f0f", border: "1px solid #2a2a2a", borderRadius: 10, width: "100%", maxWidth: 540, maxHeight: "90vh", overflowY: "auto", padding: 24 }}>
+      <div style={{ background: "#1c1c1c", border: "1px solid #3a3a3a", borderRadius: 10, width: "100%", maxWidth: 540, maxHeight: "90vh", overflowY: "auto", padding: 24 }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -142,7 +142,7 @@ export default function BusinessPopup({ biz, onClose }) {
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="Add notes about this business..."
-            style={{ width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 5, color: "#f0f0f0", padding: "10px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", resize: "vertical", minHeight: 80 }}
+            style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "10px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", resize: "vertical", minHeight: 80 }}
           />
         </div>
 
@@ -160,7 +160,7 @@ export default function BusinessPopup({ biz, onClose }) {
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setEditing(!editing)} style={{ flex: 1, background: editing ? "#1e1e1e" : "transparent", border: "1px solid #2a2a2a", color: editing ? "#ff4d00" : "#888", borderRadius: 5, padding: "10px", fontFamily: "monospace", fontSize: 11, cursor: "pointer", letterSpacing: 1 }}>
+          <button onClick={() => setEditing(!editing)} style={{ flex: 1, background: editing ? "#333333" : "transparent", border: "1px solid #3a3a3a", color: editing ? "#ff4d00" : "#888", borderRadius: 5, padding: "10px", fontFamily: "monospace", fontSize: 11, cursor: "pointer", letterSpacing: 1 }}>
             {editing ? "SAVE EDITS" : "EDIT INFO"}
           </button>
           <button onClick={handleSaveToCRM} disabled={saving || saved} style={{ flex: 2, background: saved ? "#22c55e" : "#ff4d00", border: "none", color: "#fff", borderRadius: 5, padding: "10px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: saving || saved ? "not-allowed" : "pointer", letterSpacing: 1, opacity: saving ? 0.7 : 1 }}>
@@ -182,7 +182,7 @@ function Field({ label, value, editing, onChange, isLink, conflicted }) {
       </div>
       {editing && onChange ? (
         <input value={value || ""} onChange={e => onChange(e.target.value)}
-          style={{ width: "100%", background: "#080808", border: conflicted ? "1px solid #f5a62366" : "1px solid #ff4d0066", borderRadius: 4, color: "#f0f0f0", padding: "7px 10px", fontSize: 13, fontFamily: "Inter, sans-serif" }} />
+          style={{ width: "100%", background: "#161616", border: conflicted ? "1px solid #f5a62366" : "1px solid #ff4d0066", borderRadius: 4, color: "#f0f0f0", padding: "7px 10px", fontSize: 13, fontFamily: "Inter, sans-serif" }} />
       ) : (
         <div style={{ fontSize: 13, color: value ? (isLink ? "#4a9eff" : conflicted ? "#f5a623" : "#f0f0f0") : "#333" }}>
           {isLink && value

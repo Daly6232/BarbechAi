@@ -62,7 +62,7 @@ export default function CRMPage() {
             <StatBadge label="TOTAL" value={leads.length} color="#555" />
             <StatBadge label="WON" value={totalWon} color="#22c55e" />
             <StatBadge label="LOST" value={totalLost} color="#ef4444" />
-            <button onClick={fetchCRMLeads} style={{ background: "#1e1e1e", border: "1px solid #2a2a2a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+            <button onClick={fetchCRMLeads} style={{ background: "#333333", border: "1px solid #3a3a3a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@ export default function CRMPage() {
           {CRM_STAGES.map(stage => (
             <div key={stage.key} style={{ minWidth: 220, flex: "0 0 220px" }}>
               {/* Column Header */}
-              <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderTop: `3px solid ${stage.color}`, borderRadius: 6, padding: "10px 14px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderTop: `3px solid ${stage.color}`, borderRadius: 6, padding: "10px 14px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: stage.color, letterSpacing: 1 }}>{stage.label.toUpperCase()}</div>
                 <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 800, color: stage.color }}>{getStageLeads(stage.key).length}</div>
               </div>
@@ -88,7 +88,7 @@ export default function CRMPage() {
               {/* Cards */}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {getStageLeads(stage.key).map(lead => (
-                  <div key={lead.id} style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: 12 }}>
+                  <div key={lead.id} style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: 12 }}>
                     <div onClick={() => setSelected(lead)} style={{ cursor: "pointer", marginBottom: 10 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f0f0", marginBottom: 2 }}>{lead.name}</div>
                       <div style={{ fontFamily: "monospace", fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 4 }}>{lead.category?.toUpperCase()} · {lead.city}</div>
@@ -117,7 +117,7 @@ export default function CRMPage() {
                 ))}
 
                 {getStageLeads(stage.key).length === 0 && (
-                  <div style={{ border: "1px dashed #1e1e1e", borderRadius: 6, padding: "20px 12px", textAlign: "center", fontFamily: "monospace", fontSize: 10, color: "#2a2a2a" }}>Empty</div>
+                  <div style={{ border: "1px dashed #333333", borderRadius: 6, padding: "20px 12px", textAlign: "center", fontFamily: "monospace", fontSize: 10, color: "#3a3a3a" }}>Empty</div>
                 )}
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function CRMPage() {
 
 function StatBadge({ label, value, color }) {
   return (
-    <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+    <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
       <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color }}>{value}</div>
       <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{label}</div>
     </div>

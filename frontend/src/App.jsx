@@ -52,7 +52,7 @@ export default function App() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", background: "#161616", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ fontFamily: "monospace", fontSize: 12, color: "#444" }}>Chargement...</div>
       </div>
     );
@@ -71,7 +71,7 @@ export default function App() {
   }[user.role] || user.role;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080808", color: "#f0f0f0", fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#161616", color: "#f0f0f0", fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -95,14 +95,14 @@ export default function App() {
             <button key={p} onClick={() => setPage(p)} style={{
               background: page === p ? "#ff4d00" : "transparent",
               color: page === p ? "#fff" : "#555",
-              border: "1px solid " + (page === p ? "#ff4d00" : "#1e1e1e"),
+              border: "1px solid " + (page === p ? "#ff4d00" : "#333333"),
               borderRadius: 4, padding: "6px 12px",
               fontFamily: "monospace", fontSize: 11,
               cursor: "pointer", letterSpacing: 1,
             }}>{p.toUpperCase()}</button>
           ))}
 
-          <div style={{ width: 1, height: 20, background: "#1e1e1e", margin: "0 6px" }} />
+          <div style={{ width: 1, height: 20, background: "#333333", margin: "0 6px" }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ textAlign: "right" }}>

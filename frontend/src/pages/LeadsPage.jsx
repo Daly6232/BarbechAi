@@ -8,7 +8,7 @@ const scoreColor = (s) => s >= 71 ? "#ff4d00" : s >= 41 ? "#f5a623" : "#4a9eff";
 const scoreLabel = (s) => s >= 71 ? "HIGH" : s >= 41 ? "MEDIUM" : "LOW";
 
 const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
-const selectStyle = { width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 5, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const selectStyle = { width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
@@ -79,14 +79,14 @@ export default function LeadsPage() {
         <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 3, marginBottom: 8 }}>LEAD MANAGEMENT</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <h1 style={{ fontSize: 26, fontWeight: 800 }}>Leads Pipeline</h1>
-          <button onClick={fetchLeads} style={{ background: "#1e1e1e", border: "1px solid #2a2a2a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+          <button onClick={fetchLeads} style={{ background: "#333333", border: "1px solid #3a3a3a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
         </div>
       </div>
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         {[["TOTAL", leads.length, "#555"], ["HIGH", stats.high, "#ff4d00"], ["MED", stats.medium, "#f5a623"], ["LOW", stats.low, "#4a9eff"], ["ENRICHED", stats.enriched, "#22c55e"]].map(([l, v, c]) => (
-          <div key={l} style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+          <div key={l} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
             <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: c }}>{v}</div>
             <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
           </div>
@@ -99,7 +99,7 @@ export default function LeadsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name or city..."
-          style={{ width: "100%", background: "#0f0f0f", border: "1px solid #2a2a2a", borderRadius: 5, color: "#f0f0f0", padding: "10px 14px", fontSize: 13, fontFamily: "Inter, sans-serif" }}
+          style={{ width: "100%", background: "#1c1c1c", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "10px 14px", fontSize: 13, fontFamily: "Inter, sans-serif" }}
         />
       </div>
 
@@ -160,7 +160,7 @@ export default function LeadsPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((lead, i) => (
             <div key={lead.id || i} onClick={() => setSelected(lead)}
-              style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", marginBottom: 2 }}>{lead.name}</div>
                 <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 3 }}>{lead.category?.toUpperCase()} · {lead.city}</div>

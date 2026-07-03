@@ -60,7 +60,7 @@ export default function ExportPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 8, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 8, padding: 20, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ flex: 1, minWidth: 130 }}>
             <div style={labelStyle}>Status</div>
@@ -83,7 +83,7 @@ export default function ExportPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 6, padding: "12px 20px", fontFamily: "monospace", fontSize: 13, color: "#f0f0f0" }}>
+          <div style={{ background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 6, padding: "12px 20px", fontFamily: "monospace", fontSize: 13, color: "#f0f0f0" }}>
             {filtered.length} leads selected
           </div>
           <button onClick={exportCSV} disabled={filtered.length === 0} style={{
@@ -102,7 +102,7 @@ export default function ExportPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.slice(0, 20).map((lead, i) => (
-            <div key={i} style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 5, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div key={i} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 5, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f0f0" }}>{lead.name}</div>
                 <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", marginTop: 2 }}>{lead.category} · {lead.city} · {lead.status}</div>
@@ -122,4 +122,4 @@ export default function ExportPage() {
 }
 
 const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
-const selectStyle = { width: "100%", background: "#080808", border: "1px solid #2a2a2a", borderRadius: 5, color: "#f0f0f0", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const selectStyle = { width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };

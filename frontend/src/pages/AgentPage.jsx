@@ -46,10 +46,10 @@ export default function AgentPage() {
       </div>
 
       {/* Agent Selector */}
-      <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 8, padding: 16, marginBottom: 20 }}>
+      <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 8, padding: 16, marginBottom: 20 }}>
         <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, marginBottom: 6 }}>AGENT ID</div>
         <input value={agentId} onChange={e => setAgentId(e.target.value)}
-          style={{ background: "#080808", border: "1px solid #2a2a2a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", width: "100%" }} />
+          style={{ background: "#161616", border: "1px solid #3a3a3a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", width: "100%" }} />
       </div>
 
       {/* Stats */}
@@ -61,7 +61,7 @@ export default function AgentPage() {
             ["INTERESTED", stats.interested || 0, "#22c55e"],
             ["APPOINTMENTS", stats.appointments || 0, "#ff4d00"],
           ].map(([l, v, c]) => (
-            <div key={l} style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+            <div key={l} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
               <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: c }}>{v}</div>
               <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
             </div>
@@ -77,7 +77,7 @@ export default function AgentPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {leads.map((lead, i) => (
-            <div key={lead.id || i} style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px" }}>
+            <div key={lead.id || i} style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                 <div onClick={() => setSelected(lead)} style={{ cursor: "pointer" }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", marginBottom: 3 }}>{lead.name}</div>
@@ -91,7 +91,7 @@ export default function AgentPage() {
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {["CALLED", "INTERESTED", "NOT_INTERESTED", "APPOINTMENT_SET"].map(action => (
                   <button key={action} onClick={() => logAction(lead.id, action)} style={{
-                    background: "transparent", border: "1px solid #2a2a2a", color: "#666",
+                    background: "transparent", border: "1px solid #3a3a3a", color: "#666",
                     borderRadius: 3, padding: "4px 10px", fontFamily: "monospace", fontSize: 10,
                     cursor: "pointer", letterSpacing: 1,
                   }}>{action}</button>
