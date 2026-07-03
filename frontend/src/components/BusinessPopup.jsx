@@ -58,7 +58,7 @@ export default function BusinessPopup({ biz, onClose }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/crm/add?lead_id=${encodeURIComponent(biz.id)}&notes=${encodeURIComponent(notes)}`,
         { method: "POST" }
       );
