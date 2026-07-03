@@ -1,5 +1,5 @@
 import { apiFetch } from "../api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
 import { API } from "../config";
@@ -21,7 +21,12 @@ export default function LeadsPage() {
   const [filterOpportunity, setFilterOpportunity] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
 
-  useEffect(() => { fetchLeads(); }, []);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichProgress, setEnrichProgress] = useState({ done: 0, total: 0 });
+  const stopFlag = useRef(false);
+
+  useEffect(() => { fetchLeads(); fetchPendingCount(); }, []);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -35,6 +40,56 @@ export default function LeadsPage() {
       setLoading(false);
     }
   };
+
+  const fetchPendingCount = async () => {
+    try {
+      const res = await apiFetch(`${API}/leads/pending-count`);
+      const data = await res.json();
+      setPendingCount(data.pending || 0);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const enrichAllPending = async () => {
+    setEnriching(true);
+    stopFlag.current = false;
+    const startRes = await apiFetch(`${API}/leads/pending-count`);
+    const startData = await startRes.json();
+    const total = startData.pending || 0;
+    setEnrichProgress({ done: 0, total });
+
+    let remaining = total;
+    let done = 0;
+
+    while (remaining > 0 && !stopFlag.current) {
+      try {
+        const res = await apiFetch(`${API}/leads/enrich-pending?batch_size=10`, { method: "POST" });
+        const data = await res.json();
+        if (data.error) break;
+        done += data.queued || 0;
+        remaining = data.remaining ?? 0;
+        setEnrichProgress({ done, total });
+        await fetchLeads();
+        await fetchPendingCount();
+        // give background threads time to finish before queuing next batch
+        await new Promise(r => setTimeout(r, 8000));
+      } catch (e) {
+        break;
+      }
+    }
+    setEnriching(false);
+    fetchLeads();
+    fetchPendingCount();
+  };
+
+  // Keep the open popup in sync with the latest fetched data
+  useEffect(() => {
+    if (selected) {
+      const fresh = leads.find(l => l.id === selected.id);
+      if (fresh) setSelected(fresh);
+    }
+  }, [leads]);
 
   const statuses = ["ALL", "NEW", "ENRICHING", "ENRICHED", "CONTACTED", "INTERESTED", "NOT_INTERESTED", "APPOINTMENT_SET"];
   const cities = ["ALL", ...new Set(leads.map(l => l.city).filter(Boolean))];
@@ -82,6 +137,26 @@ export default function LeadsPage() {
           <button onClick={fetchLeads} style={{ background: "#333333", border: "1px solid #3a3a3a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
         </div>
       </div>
+
+      {/* Enrich pending banner */}
+      {pendingCount > 0 && (
+        <div style={{ background: "#1a0a0a", border: "1px solid #ff4d0033", borderRadius: 6, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ff4d00" }}>
+            {enriching
+              ? `⟳ ENRICHING ${enrichProgress.done}/${enrichProgress.total}...`
+              : `${pendingCount} leads not yet enriched`}
+          </div>
+          {enriching ? (
+            <button onClick={() => { stopFlag.current = true; }} style={{ background: "transparent", border: "1px solid #ff4d0066", color: "#ff4d00", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>
+              STOP
+            </button>
+          ) : (
+            <button onClick={enrichAllPending} style={{ background: "#ff4d00", border: "none", color: "#fff", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              ⚡ ENRICH PENDING
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>

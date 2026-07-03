@@ -298,3 +298,44 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
         "excluded_saved": len(cleaned) - len(scored_businesses),
         "returned": len(results),
     }
+@router.get("/leads/pending-count")
+def pending_count():
+    db = SessionLocal()
+    try:
+        count = db.query(Lead).filter(Lead.status == "NEW").count()
+        return {"pending": count}
+    finally:
+        db.close()
+
+
+@router.post("/leads/enrich-pending")
+def enrich_pending(batch_size: int = 10, session_id: str = "default"):
+    db = SessionLocal()
+    try:
+        pending = (
+            db.query(Lead, Business)
+            .join(Business, Lead.business_id == Business.id)
+            .filter(Lead.status == "NEW")
+            .limit(batch_size)
+            .all()
+        )
+        queued_ids = []
+        for lead, biz in pending:
+            lead.status = "ENRICHING"
+            queued_ids.append(biz.id)
+        db.commit()
+
+        for lead, biz in pending:
+            enrich_in_background(
+                biz.id, biz.name, biz.city, biz.lat, biz.lng,
+                on_enrichment_complete,
+                session_id=session_id,
+            )
+
+        remaining = db.query(Lead).filter(Lead.status == "NEW").count()
+        return {"queued": len(queued_ids), "remaining": remaining}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
