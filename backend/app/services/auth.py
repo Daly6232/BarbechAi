@@ -152,3 +152,17 @@ def list_agents(requester_role: str):
         }
     finally:
         db.close()
+
+
+def require_auth(authorization: str, allowed_roles: list = None):
+    """Validate a Bearer token and optionally restrict by role.
+    Returns (user_dict, None) on success, or (None, error_dict) on failure."""
+    if not authorization:
+        return None, {"error": "No token provided"}
+    token = authorization.replace("Bearer ", "")
+    user = get_current_user(token)
+    if not user:
+        return None, {"error": "Invalid or expired token"}
+    if allowed_roles and user["role"] not in allowed_roles:
+        return None, {"error": "Insufficient permissions"}
+    return user, None

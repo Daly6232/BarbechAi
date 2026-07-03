@@ -1,3 +1,4 @@
+import { apiFetch } from "../api";
 import { useState, useEffect } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
@@ -25,7 +26,7 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/crm/pipeline`);
+      const res = await apiFetch(`${API}/crm/pipeline`);
       const data = await res.json();
       setLeads(data.leads || []);
     } catch (e) {

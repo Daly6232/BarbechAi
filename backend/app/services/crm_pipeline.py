@@ -175,24 +175,3 @@ def add_note(lead_id: str, note: str):
         db.close()
 
 
-def create_lead(business: dict, score: dict):
-    """Legacy: create a new lead manually."""
-    db = SessionLocal()
-    try:
-        lead = Lead(
-            id=generate_uuid(),
-            business_id=business.get("id", generate_uuid()),
-            score=score.get("score", 0),
-            opportunity_level=score.get("opportunity_level", "LOW"),
-            status="NEW",
-            in_crm="false",
-        )
-        db.add(lead)
-        db.commit()
-        return {"success": True, "lead_id": lead.id}
-    except Exception as exc:
-        db.rollback()
-        logger.exception(exc)
-        return {"error": str(exc)}
-    finally:
-        db.close()

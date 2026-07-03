@@ -1,3 +1,4 @@
+import { apiFetch } from "../api";
 import { useState, useEffect } from "react";
 
 import { API } from "../config";
@@ -13,7 +14,7 @@ export default function ExportPage() {
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch(`${API}/crm/pipeline`);
+      const res = await apiFetch(`${API}/crm/pipeline`);
       const data = await res.json();
       setLeads(data.leads || []);
     } catch (e) {

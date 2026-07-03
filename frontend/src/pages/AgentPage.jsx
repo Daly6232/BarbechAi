@@ -1,3 +1,4 @@
+import { apiFetch } from "../api";
 import { useState, useEffect } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
@@ -17,7 +18,7 @@ export default function AgentPage() {
   const fetchAgentLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/agent/stats?agent_id=${agentId}`);
+      const res = await apiFetch(`${API}/agent/stats?agent_id=${agentId}`);
       const data = await res.json();
       setStats(data);
       setLeads(data.leads || []);
@@ -30,7 +31,7 @@ export default function AgentPage() {
 
   const logAction = async (leadId, action) => {
     try {
-      await fetch(`${API}/agent/log?agent_id=${agentId}&lead_id=${leadId}&action=${action}`, { method: "POST" });
+      await apiFetch(`${API}/agent/log?agent_id=${agentId}&lead_id=${leadId}&action=${action}`, { method: "POST" });
       fetchAgentLeads();
     } catch (e) {}
   };

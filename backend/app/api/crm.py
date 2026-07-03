@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
+from app.services.auth import require_auth
 from app.services.crm_pipeline import (
     get_pipeline,
     get_crm_leads,
@@ -6,49 +7,62 @@ from app.services.crm_pipeline import (
     update_crm_status,
     update_status,
     add_note,
-    create_lead,
 )
 
 router = APIRouter()
 
+CRM_ROLES = ["master_admin", "admin", "back_office"]
+
 
 @router.get("/crm/pipeline")
-def pipeline():
+def pipeline(authorization: str = Header(None)):
     """All auto-discovered leads (Leads page)."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return get_pipeline()
 
 
 @router.get("/crm/leads")
-def crm_leads():
+def crm_leads(authorization: str = Header(None)):
     """Only manually added CRM leads (CRM page)."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return get_crm_leads()
 
 
 @router.post("/crm/add")
-def add_lead_to_crm(lead_id: str, notes: str = ""):
+def add_lead_to_crm(lead_id: str, notes: str = "", authorization: str = Header(None)):
     """Add existing lead to CRM pipeline."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return add_to_crm(lead_id, notes)
 
 
 @router.post("/crm/status")
-def status(lead_id: str, new_status: str):
+def status(lead_id: str, new_status: str, authorization: str = Header(None)):
     """Update CRM pipeline status."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return update_crm_status(lead_id, new_status)
 
 
 @router.post("/crm/lead-status")
-def lead_status(lead_id: str, new_status: str):
+def lead_status(lead_id: str, new_status: str, authorization: str = Header(None)):
     """Update discovery lead status."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return update_status(lead_id, new_status)
 
 
 @router.post("/crm/note")
-def note(lead_id: str, note: str):
+def note(lead_id: str, note: str, authorization: str = Header(None)):
     """Add note to lead."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
     return add_note(lead_id, note)
-
-
-@router.post("/crm/create")
-def create(business: dict, score: dict):
-    """Legacy: create lead manually."""
-    return create_lead(business, score)

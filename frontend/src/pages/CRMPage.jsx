@@ -1,3 +1,4 @@
+import { apiFetch } from "../api";
 import { useState, useEffect } from "react";
 import BusinessPopup from "../components/BusinessPopup";
 
@@ -25,7 +26,7 @@ export default function CRMPage() {
   const fetchCRMLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/crm/leads`);
+      const res = await apiFetch(`${API}/crm/leads`);
       const data = await res.json();
       setLeads(data.leads || []);
     } catch (e) {
@@ -38,7 +39,7 @@ export default function CRMPage() {
   const moveStage = async (leadId, newStatus) => {
     setMovingId(leadId);
     try {
-      await fetch(`${API}/crm/status?lead_id=${encodeURIComponent(leadId)}&new_status=${newStatus}`, { method: "POST" });
+      await apiFetch(`${API}/crm/status?lead_id=${encodeURIComponent(leadId)}&new_status=${newStatus}`, { method: "POST" });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, crm_status: newStatus } : l));
     } catch (e) {} finally {
       setMovingId(null);
