@@ -6,3 +6,4 @@ ddgs
 uvicorn[standard]
 bcrypt
 python-jose[cryptography]
+python-dotenv==1.2.2
