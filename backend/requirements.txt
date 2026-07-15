@@ -1,5 +1,6 @@
 fastapi
 requests
+httpx
 psycopg2-binary
 sqlalchemy
 uvicorn[standard]
