@@ -10,6 +10,7 @@ from sqlalchemy import (
     Text,
     Boolean,
     create_engine,
+    text,  # Added to execute raw SQL for safe startup migrations
 )
 from sqlalchemy.orm import (
     declarative_base,
@@ -57,7 +58,6 @@ class Business(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String)
-    # Added search indexes to prevent CPU/RAM table scans
     category = Column(String, index=True)
     city = Column(String, index=True)
     region = Column(String)
@@ -115,9 +115,9 @@ class Lead(Base):
 
     score = Column(Integer)
     opportunity_level = Column(String)
-    status = Column(String, default="NEW", index=True)  # Indexed status queries
+    status = Column(String, default="NEW", index=True)
 
-    # Storing pitch target tags as a serialized comma-separated string
+    # Storage column for lead opportunity tags
     service_opportunities = Column(Text, nullable=True)
 
     in_crm = Column(String, default="false")
@@ -211,5 +211,23 @@ class AgentActivity(Base):
 
 def init_db():
     logger.info("Initializing database...")
+    # Step 1: Standard SQLAlchemy tables setup
     Base.metadata.create_all(bind=engine)
-    logger.info("Database initialized.")
+    
+    # Step 2: Automated inline schema checks
+    migrations = [
+        "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
+        "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
+        "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
+        "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);"
+    ]
+    
+    with engine.begin() as conn:
+        for cmd in migrations:
+            try:
+                conn.execute(text(cmd))
+                logger.info("Startup Migration Success: %s", cmd)
+            except Exception as e:
+                logger.warning("Startup Migration Skipped/Failed: %s - Error: %s", cmd, str(e))
+                
+    logger.info("Database initialization and migration check completed successfully.")
