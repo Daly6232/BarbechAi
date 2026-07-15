@@ -318,16 +318,11 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
         on_complete(business_id, merged)
 
     if session_id:
-        try:
-            # Native, clean, and highly performant thread-safe event loop execution
-            import asyncio
-            asyncio.run(manager.send_update(session_id, {
-                "type": "enrichment_update",
-                "business_id": business_id,
-                "enrichment": merged,
-            }))
-        except Exception as e:
-            logger.warning(f"WebSocket push failed: {e}")
+        manager.push_from_thread(session_id, {
+            "type": "enrichment_update",
+            "business_id": business_id,
+            "enrichment": merged,
+        })
 
     return merged
 

@@ -1,24 +1,76 @@
 from fastapi import APIRouter, Header
+from pydantic import BaseModel
+from typing import Optional
+
 from app.services.auth import require_auth
-from app.services.agent_activity import log_activity, get_agent_stats
+from app.services.agent_activity import (
+    log_activity,
+    get_my_leads,
+    update_agent_lead,
+    get_agent_stats,
+)
 
 router = APIRouter()
 
-AGENT_LOG_ROLES = ["field_agent", "back_office", "admin", "master_admin"]
-AGENT_STATS_ROLES = ["admin", "master_admin"]
+# field_agent can only act as themselves — identity always comes from the JWT,
+# never from a client-supplied agent_id (that was the old, spoofable design).
+AGENT_ROLES = ["field_agent", "back_office", "admin", "master_admin"]
+STATS_ROLES = ["field_agent", "admin", "master_admin"]
+
+
+class LeadUpdate(BaseModel):
+    status: Optional[str] = None
+    appointment_date: Optional[str] = None
+    appointment_location: Optional[str] = None
+    meeting_completed_at: Optional[str] = None
+    proposal_sent_at: Optional[str] = None
+    contract_sent_at: Optional[str] = None
+    deal_value: Optional[float] = None
+    decline_reason: Optional[str] = None
+    crm_notes: Optional[str] = None
+
+
+@router.get("/agent/my-leads")
+def my_leads(authorization: str = Header(None)):
+    """Leads assigned to the currently authenticated agent. Scoped by JWT
+    identity — an agent can never pass someone else's id to see their leads."""
+    user, error = require_auth(authorization, AGENT_ROLES)
+    if error:
+        return error
+    return get_my_leads(user["id"])
 
 
 @router.post("/agent/log")
-def log(agent_id: str, lead_id: str, action: str, notes: str = "", authorization: str = Header(None)):
-    user, error = require_auth(authorization, AGENT_LOG_ROLES)
+def log(lead_id: str, action: str, notes: str = "", authorization: str = Header(None)):
+    user, error = require_auth(authorization, AGENT_ROLES)
     if error:
         return error
-    return log_activity(agent_id, lead_id, action, notes)
+    return log_activity(user["id"], lead_id, action, notes)
+
+
+@router.post("/agent/lead/{lead_id}/update")
+def update_lead(lead_id: str, body: LeadUpdate, authorization: str = Header(None)):
+    """Update a lead's lifecycle fields. Field agents can only touch leads
+    assigned to them; admin/master_admin can update any lead."""
+    user, error = require_auth(authorization, AGENT_ROLES)
+    if error:
+        return error
+    updates = body.dict(exclude_unset=True)
+    return update_agent_lead(user["id"], lead_id, updates, requester_role=user["role"])
 
 
 @router.get("/agent/stats")
-def stats(agent_id: str, authorization: str = Header(None)):
-    user, error = require_auth(authorization, AGENT_STATS_ROLES)
+def stats(authorization: str = Header(None)):
+    user, error = require_auth(authorization, STATS_ROLES)
+    if error:
+        return error
+    return get_agent_stats(user["id"])
+
+
+@router.get("/agent/stats/{agent_id}")
+def stats_for_agent(agent_id: str, authorization: str = Header(None)):
+    """Admin/master_admin can check any specific agent's workload/performance."""
+    user, error = require_auth(authorization, ["admin", "master_admin"])
     if error:
         return error
     return get_agent_stats(agent_id)

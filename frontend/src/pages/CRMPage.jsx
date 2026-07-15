@@ -20,8 +20,30 @@ export default function CRMPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [movingId, setMovingId] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [assigningId, setAssigningId] = useState(null);
 
-  useEffect(() => { fetchCRMLeads(); }, []);
+  useEffect(() => { fetchCRMLeads(); fetchAgents(); }, []);
+
+  const fetchAgents = async () => {
+    try {
+      const res = await apiFetch(`${API}/auth/agents`);
+      const data = await res.json();
+      setAgents((data.agents || []).filter(a => a.role === "field_agent" && a.is_active));
+    } catch (e) {
+      setAgents([]);
+    }
+  };
+
+  const assignAgent = async (leadId, agentId, agentName) => {
+    setAssigningId(leadId);
+    try {
+      await apiFetch(`${API}/crm/assign?lead_id=${encodeURIComponent(leadId)}&agent_id=${encodeURIComponent(agentId)}&agent_name=${encodeURIComponent(agentName)}`, { method: "POST" });
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assigned_agent_name: agentName } : l));
+    } catch (e) {} finally {
+      setAssigningId(null);
+    }
+  };
 
   const fetchCRMLeads = async () => {
     setLoading(true);
@@ -102,6 +124,20 @@ export default function CRMPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Assign to Field Agent */}
+                    <select
+                      value=""
+                      disabled={assigningId === lead.id}
+                      onChange={(e) => {
+                        const agent = agents.find(a => a.id === e.target.value);
+                        if (agent) assignAgent(lead.id, agent.id, agent.name);
+                      }}
+                      style={{ width: "100%", marginBottom: 8, background: "#161616", border: "1px solid #3a3a3a", color: "#888", borderRadius: 3, padding: "4px 6px", fontFamily: "monospace", fontSize: 9 }}
+                    >
+                      <option value="">{lead.assigned_agent_name ? `→ ${lead.assigned_agent_name}` : "Assign agent..."}</option>
+                      {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
 
                     {/* Move Buttons */}
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>

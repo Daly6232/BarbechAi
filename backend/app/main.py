@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from app.api.auth import router as auth_router
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import init_db
+from app.services.websocket_manager import manager
 
 logger = get_logger(__name__)
 
@@ -19,6 +21,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting BarbechAI backend...")
     init_db()
+    manager.bind_loop(asyncio.get_running_loop())
     yield
     logger.info("Stopping BarbechAI backend...")
 

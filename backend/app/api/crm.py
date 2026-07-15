@@ -7,11 +7,21 @@ from app.services.crm_pipeline import (
     update_crm_status,
     update_status,
     add_note,
+    assign_lead,
 )
 
 router = APIRouter()
 
 CRM_ROLES = ["master_admin", "admin", "back_office"]
+
+
+@router.post("/crm/assign")
+def assign(lead_id: str, agent_id: str, agent_name: str = "", authorization: str = Header(None)):
+    """Assign a lead to a field agent. Requires admin/back_office/master_admin."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
+    return assign_lead(lead_id, agent_id, agent_name)
 
 
 @router.get("/crm/pipeline")

@@ -213,21 +213,45 @@ def init_db():
     logger.info("Initializing database...")
     # Step 1: Standard SQLAlchemy tables setup
     Base.metadata.create_all(bind=engine)
-    
-    # Step 2: Automated inline schema checks
-    migrations = [
-        "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
-        "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
-        "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
-        "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);"
-    ]
-    
+
+    # Step 2: Automated inline schema checks.
+    # IMPORTANT: "ADD COLUMN IF NOT EXISTS" is Postgres-only syntax. SQLite (the
+    # local/dev default from DATABASE_URL) throws a syntax error on it every
+    # single time, which used to be swallowed by the except below — meaning the
+    # column never actually got added locally, and every lead insert that wrote
+    # service_opportunities would then crash with "no such column".
+    is_sqlite = engine.dialect.name == "sqlite"
+
     with engine.begin() as conn:
+        if is_sqlite:
+            existing_cols = {
+                row[1] for row in conn.execute(text("PRAGMA table_info(leads)")).fetchall()
+            }
+            if "service_opportunities" not in existing_cols:
+                try:
+                    conn.execute(text("ALTER TABLE leads ADD COLUMN service_opportunities TEXT"))
+                    logger.info("Startup Migration Success (sqlite): added service_opportunities")
+                except Exception as e:
+                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
+            # SQLite creates indexes via CREATE INDEX IF NOT EXISTS fine, no dialect issue there.
+            migrations = [
+                "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
+                "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
+                "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+            ]
+        else:
+            migrations = [
+                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
+                "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
+                "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
+                "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+            ]
+
         for cmd in migrations:
             try:
                 conn.execute(text(cmd))
                 logger.info("Startup Migration Success: %s", cmd)
             except Exception as e:
                 logger.warning("Startup Migration Skipped/Failed: %s - Error: %s", cmd, str(e))
-                
+
     logger.info("Database initialization and migration check completed successfully.")

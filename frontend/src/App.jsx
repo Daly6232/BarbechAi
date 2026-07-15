@@ -123,7 +123,7 @@ export default function App() {
       {page === "Search" && visiblePages.includes("Search") && <SearchPage />}
       {page === "Leads" && visiblePages.includes("Leads") && <LeadsPage />}
       {page === "CRM" && visiblePages.includes("CRM") && <CRMPage />}
-      {page === "Agent" && visiblePages.includes("Agent") && <AgentPage />}
+      {page === "Agent" && visiblePages.includes("Agent") && <AgentPage user={user} />}
       {page === "Export" && visiblePages.includes("Export") && <ExportPage />}
     </div>
   );

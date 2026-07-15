@@ -146,6 +146,26 @@ def update_status(lead_id: str, new_status: str):
         db.close()
 
 
+def assign_lead(lead_id: str, agent_id: str, agent_name: str = ""):
+    """Assign a lead to a field agent. This didn't exist before —
+    assigned_field_agent was a column nothing ever wrote to."""
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return {"error": "Lead not found"}
+        lead.assigned_field_agent = agent_id
+        lead.assigned_agent_name = agent_name
+        db.commit()
+        return {"success": True, "lead_id": lead_id, "assigned_field_agent": agent_id}
+    except Exception as exc:
+        db.rollback()
+        logger.exception(exc)
+        return {"error": str(exc)}
+    finally:
+        db.close()
+
+
 def add_note(lead_id: str, note: str):
     """Add a note to a lead's CRM pipeline."""
     db = SessionLocal()
