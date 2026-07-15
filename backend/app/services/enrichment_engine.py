@@ -4,7 +4,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from ddgs import DDGS
+from duckduckgo_search import DDGS  # Corrected import from 'ddgs' to standard 'duckduckgo_search'
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -74,11 +74,11 @@ def is_valid_instagram(url: str) -> bool:
 
 # ─── SOURCE 1: Nominatim (free reverse geocoding) ────────────────────────────
 
-def enrich_from_osm(lat, lng):
+def enrich_from_osm(session, lat, lng):
     try:
         if not lat or not lng:
             return {"source": "osm", "error": "no_coordinates"}
-        res = requests.get(
+        res = session.get(
             f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json",
             headers={"User-Agent": settings.USER_AGENT},
             timeout=settings.REQUEST_TIMEOUT,
@@ -93,19 +93,28 @@ def enrich_from_osm(lat, lng):
 
 # ─── SOURCE 2: Foursquare ─────────────────────────────────────────────────────
 
-def enrich_from_foursquare(name, city):
+def enrich_from_foursquare(session, name, city, lat=None, lng=None):
     try:
         if not FOURSQUARE_KEY:
             return {"source": "foursquare", "error": "no_key"}
-        res = requests.get(
+            
+        params = {
+            "query": name,
+            "limit": 1,
+            "fields": "name,location,tel,website,social_media",
+        }
+        
+        # Geolocation coordinate anchoring for highly precise enrichment lookup
+        if lat and lng:
+            params["ll"] = f"{lat},{lng}"
+            params["radius"] = 15000
+        else:
+            params["near"] = f"{city}, Tunisia"
+
+        res = session.get(
             "https://api.foursquare.com/v3/places/search",
             headers={"Authorization": FOURSQUARE_KEY, "Accept": "application/json"},
-            params={
-                "query": name,
-                "near": f"{city}, Tunisia",
-                "limit": 1,
-                "fields": "name,location,tel,website,social_media",
-            },
+            params=params,
             timeout=settings.REQUEST_TIMEOUT,
         )
         data = res.json()
@@ -178,15 +187,17 @@ def enrich_from_duckduckgo(name, city):
 
 # ─── SOURCE 4: Pages Jaunes TN ───────────────────────────────────────────────
 
-def enrich_from_pagesjaunes(name, city):
+def enrich_from_pagesjaunes(session, name, city):
     try:
         query = f"{name} {city}".replace(" ", "+")
-        res = requests.get(
+        res = session.get(
             f"https://www.pagesjaunes.com.tn/search?q={query}",
             headers=get_headers(),
             timeout=settings.REQUEST_TIMEOUT,
         )
-        phones = re.findall(r"[\+216\s]?[2459]\d{7}", res.text)
+        
+        # Capture landlines starting with 7, mobile lines starting with 2,4,5,9, and prevent floating decimals
+        phones = re.findall(r"\b(?:\+216|00216)?\s*([24579]\d{7})\b", res.text)
         return {
             "source": "pagesjaunes",
             "phone": phones[0].strip() if phones else "",
@@ -198,11 +209,11 @@ def enrich_from_pagesjaunes(name, city):
 
 # ─── SOURCE 5: LocationIQ (reverse geocoding) ────────────────────────────────
 
-def enrich_from_locationiq(lat, lng):
+def enrich_from_locationiq(session, lat, lng):
     try:
         if not LOCATIONIQ_KEY or not lat or not lng:
             return {"source": "locationiq", "error": "no_key_or_coords"}
-        res = requests.get(
+        res = session.get(
             "https://us1.locationiq.com/v1/reverse",
             params={
                 "key": LOCATIONIQ_KEY,
@@ -222,11 +233,11 @@ def enrich_from_locationiq(lat, lng):
 
 # ─── SOURCE 6: OpenCage (reverse geocoding) ──────────────────────────────────
 
-def enrich_from_opencage(lat, lng):
+def enrich_from_opencage(session, lat, lng):
     try:
         if not OPENCAGE_KEY or not lat or not lng:
             return {"source": "opencage", "error": "no_key_or_coords"}
-        res = requests.get(
+        res = session.get(
             "https://api.opencagedata.com/geocode/v1/json",
             params={
                 "key": OPENCAGE_KEY,
@@ -250,46 +261,52 @@ def enrich_from_opencage(lat, lng):
 # ─── PARALLEL ENRICHMENT ──────────────────────────────────────────────────────
 
 def enrich_business(business_id, name, city, lat, lng, session_id=None, on_complete=None):
+    # Establish a persistent session pool shared across parallel workers
+    session = requests.Session()
+    
     sources = [
-        lambda: enrich_from_osm(lat, lng),
-        lambda: enrich_from_foursquare(name, city),
-        lambda: enrich_from_duckduckgo(name, city),
-        lambda: enrich_from_pagesjaunes(name, city),
-        lambda: enrich_from_locationiq(lat, lng),
-        lambda: enrich_from_opencage(lat, lng),
+        lambda: enrich_from_osm(session, lat, lng),
+        lambda: enrich_from_foursquare(session, name, city, lat, lng),
+        lambda: enrich_from_duckduckgo(name, city),  # DDGS handles its own session lifecycles
+        lambda: enrich_from_pagesjaunes(session, name, city),
+        lambda: enrich_from_locationiq(session, lat, lng),
+        lambda: enrich_from_opencage(session, lat, lng),
     ]
-
+    
     merged = {
         "website": None, "facebook": None, "instagram": None,
         "phone": None, "email": None, "address": None,
         "opening_hours": None, "sources_used": [], "sources_failed": [],
     }
-
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        futures = {executor.submit(fn): fn for fn in sources}
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-            except Exception as e:
-                logger.warning(f"Enrichment source crashed: {e}")
-                continue
-            source = result.get("source", "unknown")
-            if "error" in result:
-                merged["sources_failed"].append(source)
-                continue
-            merged["sources_used"].append(source)
-            for field in ("website", "facebook", "instagram", "phone", "email", "address", "opening_hours"):
-                val = result.get(field)
-                if val and not merged[field]:
-                    merged[field] = val
+    
+    try:
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {executor.submit(fn): fn for fn in sources}
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logger.warning(f"Enrichment source crashed: {e}")
+                    continue
+                
+                source = result.get("source", "unknown")
+                if "error" in result:
+                    merged["sources_failed"].append(source)
+                    continue
+                merged["sources_used"].append(source)
+                for field in ("website", "facebook", "instagram", "phone", "email", "address", "opening_hours"):
+                    val = result.get(field)
+                    if val and not merged[field]:
+                        merged[field] = val
+    finally:
+        session.close()
 
     # Status must reflect what was actually found, not just "we tried".
-    # A lead with zero usable fields is NOT enriched — it failed and should
-    # be retryable, not silently shown as complete with blank popup fields.
     found_any = any(
         merged[field] for field in
         ("website", "facebook", "instagram", "phone", "email", "address", "opening_hours")
     )
+    
     if found_any:
         merged["status"] = "ENRICHED"
     elif merged["sources_used"]:
@@ -302,15 +319,13 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
 
     if session_id:
         try:
+            # Native, clean, and highly performant thread-safe event loop execution
             import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(manager.send_update(session_id, {
+            asyncio.run(manager.send_update(session_id, {
                 "type": "enrichment_update",
                 "business_id": business_id,
                 "enrichment": merged,
             }))
-            loop.close()
         except Exception as e:
             logger.warning(f"WebSocket push failed: {e}")
 
