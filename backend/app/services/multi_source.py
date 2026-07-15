@@ -5,7 +5,7 @@ OSM is secondary (instant preview only)
 Results cross-checked and deduplicated via reconciliation engine
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import requests
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -153,7 +153,6 @@ GEOAPIFY_MAP = {
     "informatique": "commercial.electronics",
     "téléphonie": "commercial.electronics",
     "fleuriste": "commercial.florist",
-    "supermarché": "commercial.supermarket",
 }
 
 
@@ -183,17 +182,18 @@ def _normalize(business: dict) -> dict:
 
 # ── Foursquare ────────────────────────────────────────────────────────────────
 
-def _search_foursquare(business_type: str, city: str, lat: float, lng: float) -> list:
+def _search_foursquare(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
     if not FOURSQUARE_KEY:
         return []
     query = QUERY_MAP.get(business_type, business_type)
     try:
-        res = requests.get(
+        res = session.get(
             "https://api.foursquare.com/v3/places/search",
             headers={"Authorization": FOURSQUARE_KEY, "Accept": "application/json"},
             params={
                 "query": query,
-                "near": f"{city}, Tunisia",
+                "ll": f"{lat},{lng}",  # Changed to precise coordinates bias instead of text guessing
+                "radius": 15000,
                 "limit": 50,
                 "fields": "name,location,tel,website,social_media,hours",
             },
@@ -234,13 +234,14 @@ def _search_foursquare(business_type: str, city: str, lat: float, lng: float) ->
 
 # ── TomTom ────────────────────────────────────────────────────────────────────
 
-def _search_tomtom(business_type: str, city: str, lat: float, lng: float) -> list:
+def _search_tomtom(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
     if not TOMTOM_KEY:
         return []
     query = QUERY_MAP.get(business_type, business_type)
     try:
-        res = requests.get(
-            f"https://api.tomtom.com/search/2/search/{requests.utils.quote(f'{query} {city} Tunisia')}.json",
+        # Re-centered query formatting by removing redundant terms TomTom already narrows with lat/lon bias
+        res = session.get(
+            f"https://api.tomtom.com/search/2/search/{requests.utils.quote(query)}.json",
             params={
                 "key": TOMTOM_KEY,
                 "countrySet": "TN",
@@ -279,14 +280,14 @@ def _search_tomtom(business_type: str, city: str, lat: float, lng: float) -> lis
 
 # ── Geoapify ──────────────────────────────────────────────────────────────────
 
-def _search_geoapify(business_type: str, city: str, lat: float, lng: float) -> list:
+def _search_geoapify(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
     if not GEOAPIFY_KEY:
         return []
     category = GEOAPIFY_MAP.get(business_type)
     if not category:
         return []
     try:
-        res = requests.get(
+        res = session.get(
             "https://api.geoapify.com/v2/places",
             params={
                 "categories": category,
@@ -324,19 +325,21 @@ def _search_geoapify(business_type: str, city: str, lat: float, lng: float) -> l
 
 # ── LocationIQ ────────────────────────────────────────────────────────────────
 
-def _search_locationiq(business_type: str, city: str, lat: float, lng: float) -> list:
+def _search_locationiq(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
     if not LOCATIONIQ_KEY:
         return []
     query = QUERY_MAP.get(business_type, business_type)
     try:
-        res = requests.get(
+        res = session.get(
             "https://us1.locationiq.com/v1/search",
             params={
                 "key": LOCATIONIQ_KEY,
-                "q": f"{query} {city} Tunisia",
+                "q": f"{query} {city}",
                 "format": "json",
                 "limit": 50,
                 "countrycodes": "tn",
+                "lat": lat,  # Added local coordinate biasing for precise proximity ranking
+                "lon": lng,
                 "addressdetails": 1,
             },
             timeout=TIMEOUT,
@@ -376,19 +379,24 @@ def discover_multi_source(city: str, business_type: str, osm_results: list) -> d
     lat, lng = _get_center(city)
     bt = business_type.lower().strip()
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        f_fsq = executor.submit(_search_foursquare, bt, city, lat, lng)
-        f_tom = executor.submit(_search_tomtom, bt, city, lat, lng)
-        f_geo = executor.submit(_search_geoapify, bt, city, lat, lng)
-        f_liq = executor.submit(_search_locationiq, bt, city, lat, lng)
+    # Unified Connection session pool to speed up parallel requests by skipping redundant handshakes
+    session = requests.Session()
 
-        fsq = f_fsq.result()
-        tom = f_tom.result()
-        geo = f_geo.result()
-        liq = f_liq.result()
+    try:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            f_fsq = executor.submit(_search_foursquare, session, bt, city, lat, lng)
+            f_tom = executor.submit(_search_tomtom, session, bt, city, lat, lng)
+            f_geo = executor.submit(_search_geoapify, session, bt, city, lat, lng)
+            f_liq = executor.submit(_search_locationiq, session, bt, city, lat, lng)
+
+            fsq = f_fsq.result()
+            tom = f_tom.result()
+            geo = f_geo.result()
+            liq = f_liq.result()
+    finally:
+        session.close()
 
     all_results = fsq + tom + geo + liq
-
     return {
         "all_results": all_results,
         "source_summary": {

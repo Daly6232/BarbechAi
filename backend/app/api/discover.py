@@ -1,8 +1,8 @@
 import random
 import uuid
-import threading
+import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 
 from app.services.discovery import discover_businesses
 from app.services.normalization import normalize_businesses
@@ -67,8 +67,6 @@ def _get_saved_business_names(db, city: str, category: str) -> set:
 
 def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: str = "NEW") -> dict:
     biz_id = str(uuid.uuid4())
-
-    # Always use the French business type as category, not the OSM tag
     category = business_type
 
     db_biz = Business(
@@ -138,63 +136,47 @@ def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: 
     }
 
 
-def _run_phase_two(city: str, business_type: str, osm_results: list, session_id: str):
-    import asyncio
+async def _run_phase_two(city: str, business_type: str, osm_results: list, session_id: str):
     db = SessionLocal()
     try:
-        ms_result = discover_multi_source(city, business_type, osm_results)
+        # Offload heavy synchronous queries to the background thread pool
+        ms_result = await asyncio.to_thread(discover_multi_source, city, business_type, osm_results)
         all_external = ms_result.get("all_results", [])
 
         if not all_external:
             return
 
-        recon = reconcile(osm_results, all_external)
+        recon = await asyncio.to_thread(reconcile, osm_results, all_external)
         merged = recon.get("merged", [])
         new_discoveries = recon.get("new_discoveries", [])
 
         for biz in merged:
             if biz.get("has_conflicts"):
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    loop.run_until_complete(manager.send_update(session_id, {
-                        "type": "conflict_detected",
-                        "business_id": biz.get("id", ""),
-                        "business_name": biz.get("name", ""),
-                        "conflict_fields": biz.get("conflict_fields", []),
-                    }))
-                    loop.close()
-                except Exception:
-                    pass
-
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(manager.send_update(session_id, {
-                    "type": "confidence_update",
+                # Smooth, native websocket push directly on FastAPI's active loop
+                await manager.send_update(session_id, {
+                    "type": "conflict_detected",
                     "business_id": biz.get("id", ""),
                     "business_name": biz.get("name", ""),
-                    "confidence": biz.get("confidence", 100),
-                    "sources_used": biz.get("sources_used", []),
-                }))
-                loop.close()
-            except Exception:
-                pass
+                    "conflict_fields": biz.get("conflict_fields", []),
+                })
+
+            await manager.send_update(session_id, {
+                "type": "confidence_update",
+                "business_id": biz.get("id", ""),
+                "business_name": biz.get("name", ""),
+                "confidence": biz.get("confidence", 100),
+                "sources_used": biz.get("sources_used", []),
+            })
 
         for biz in new_discoveries:
-            biz_result = _write_business_to_db(db, biz, city, business_type, status="NEW")
+            # Safely perform database insertion off-thread
+            biz_result = await asyncio.to_thread(_write_business_to_db, db, biz, city, business_type, "NEW")
             db.commit()
 
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(manager.send_update(session_id, {
-                    "type": "new_discovery",
-                    "business": biz_result,
-                }))
-                loop.close()
-            except Exception:
-                pass
+            await manager.send_update(session_id, {
+                "type": "new_discovery",
+                "business": biz_result,
+            })
 
             enrich_in_background(
                 biz_result["id"],
@@ -214,8 +196,9 @@ def _run_phase_two(city: str, business_type: str, osm_results: list, session_id:
 
 
 @router.get("/discover")
-def discover(city: str, business_type: str = "restaurant", session_id: str = "default"):
-    raw = discover_businesses(city, business_type)
+async def discover(city: str, business_type: str = "restaurant", session_id: str = "default", background_tasks: BackgroundTasks = None):
+    # Properly awaiting the updated async discovery engine
+    raw = await discover_businesses(city, business_type)
 
     if isinstance(raw, dict) and "error" in raw:
         return raw
@@ -266,12 +249,14 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
             for b in selected
         ]
 
-        thread = threading.Thread(
-            target=_run_phase_two,
-            args=(city, business_type, osm_for_recon, session_id),
-            daemon=True,
-        )
-        thread.start()
+        # Use FastAPI's managed task execution pool instead of standard unmanaged threads
+        if background_tasks:
+            background_tasks.add_task(
+                _run_phase_two, city, business_type, osm_for_recon, session_id
+            )
+        else:
+            # Fallback wrapper if endpoint context fails to receive background tasks
+            asyncio.create_task(_run_phase_two(city, business_type, osm_for_recon, session_id))
 
         # Phase 3: Enrichment (background)
         for i, b in enumerate(selected):
@@ -298,6 +283,8 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
         "excluded_saved": len(cleaned) - len(scored_businesses),
         "returned": len(results),
     }
+
+
 PENDING_STATUSES = ["NEW", "ENRICHMENT_FAILED"]
 
 

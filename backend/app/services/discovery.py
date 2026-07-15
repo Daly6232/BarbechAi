@@ -1,5 +1,4 @@
-import random
-import requests
+import httpx
 from app.core.config import settings
 from app.core.constants import DEFAULT_BUSINESS_TYPE
 from app.core.logging import get_logger
@@ -142,22 +141,22 @@ def _build_overpass_query(business_type: str, south: float, west: float, north: 
     if not tags:
         tags = [("amenity", business_type)]
 
-    node_queries = []
+    nwr_queries = []
     for key, value in tags:
-        node_queries.append(f'node["{key}"="{value}"]({south},{west},{north},{east});')
+        nwr_queries.append(f'nwr["{key}"="{value}"]({south},{west},{north},{east});')
 
-    union_body = "\n    ".join(node_queries)
+    union_body = "\n    ".join(nwr_queries)
     query = f"""
 [out:json][timeout:25];
 (
     {union_body}
 );
-out tags 500;
+out center 500;
 """
     return query
 
 
-def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
+async def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
     if city not in LOCATION_BBOX:
         logger.warning("Unsupported location: %s", city)
         return {
@@ -170,16 +169,17 @@ def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
     query = _build_overpass_query(business_type_lower, south, west, north, east)
 
     try:
-        logger.info("Searching '%s' in %s", business_type_lower, city)
-        response = requests.post(
-            OVERPASS_URL,
-            data={"data": query},
-            headers=HEADERS,
-            timeout=25,
-        )
+        logger.info("Searching '%s' in %s (Async-Overpass)", business_type_lower, city)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                OVERPASS_URL,
+                data={"data": query},
+                headers=HEADERS,
+                timeout=30.0,
+            )
 
         if response.status_code != 200:
-            logger.error("OSM returned %s", response.status_code)
+            logger.error("OSM returned HTTP %s", response.status_code)
             return {"error": "OSM request failed", "status": response.status_code}
 
         data = response.json()
@@ -191,6 +191,8 @@ def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
                 tags.get("name")
                 or tags.get("name:fr")
                 or tags.get("name:ar")
+                or tags.get("brand")
+                or tags.get("operator")
             )
             if not name:
                 continue
@@ -206,11 +208,14 @@ def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
                 or business_type_lower
             )
 
+            lat = el.get("lat") or el.get("center", {}).get("lat")
+            lng = el.get("lon") or el.get("center", {}).get("lon")
+
             results.append({
                 "name": name,
                 "category": detected_category,
-                "lat": el.get("lat"),
-                "lng": el.get("lon"),
+                "lat": lat,
+                "lng": lng,
                 "source": ["osm"],
                 "address": " ".join(filter(None, [
                     tags.get("addr:housenumber", ""),
@@ -247,6 +252,9 @@ def discover_businesses(city: str, business_type: str = DEFAULT_BUSINESS_TYPE):
         logger.info("Found %d results for '%s' in %s", len(results), business_type_lower, city)
         return results
 
+    except httpx.RequestError as e:
+        logger.error("OSM Network/Timeout Exception: %s", str(e))
+        return {"error": "OSM connection timed out or failed"}
     except Exception as e:
         logger.exception("Discovery failed for '%s' in %s", business_type_lower, city)
         return {"error": str(e)}

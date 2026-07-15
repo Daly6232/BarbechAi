@@ -12,6 +12,17 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Source Trust Hierarchy - OSM & Foursquare have curated/verified details,
+# while aggregate services get lower priority during data conflicts.
+SOURCE_PRIORITY = {
+    "osm": 5,
+    "foursquare": 4,
+    "tomtom": 3,
+    "geoapify": 2,
+    "locationiq": 1,
+    "unknown": 0
+}
+
 
 def _normalize_name(name: str) -> str:
     if not name:
@@ -19,7 +30,10 @@ def _normalize_name(name: str) -> str:
     name = name.lower().strip()
     name = re.sub(r"[^\w\s]", "", name)
     name = re.sub(r"\s+", " ", name)
-    for word in ["le", "la", "les", "de", "du", "des", "el", "al", "dar"]:
+    
+    # Kept "dar", "el", "al" intact to avoid false merging of distinct Tunisian venues.
+    # (e.g. "Dar El Jeld" should not merge with a standard leather shop named "Jeld").
+    for word in ["le", "la", "les", "de", "du", "des"]:
         name = re.sub(rf"\b{word}\b", "", name)
     return name.strip()
 
@@ -43,20 +57,27 @@ def _as_source_name(source) -> str:
     return "unknown"
 
 
-def _merge_field(existing_value: str, new_value: str, source_name: str) -> tuple:
+def _merge_field(existing_value: str, new_value: str, existing_source: str, incoming_source: str) -> tuple:
     existing = (existing_value or "").strip()
     new = (new_value or "").strip()
 
     if not existing and not new:
-        return ("", False, [])
+        return ("", False)
     if not existing:
-        return (new, False, [source_name])
+        return (new, False)
     if not new:
-        return (existing, False, [])
+        return (existing, False)
     if existing.lower() == new.lower():
-        return (existing, False, [source_name])
+        return (existing, False)
 
-    return (f"{existing} ⚠ {new}", True, [source_name])
+    # Data Conflict Detected!
+    # Instead of corrupting the string with "⚠", we consult the Source Trust Hierarchy
+    existing_priority = SOURCE_PRIORITY.get(existing_source, 0)
+    incoming_priority = SOURCE_PRIORITY.get(incoming_source, 0)
+
+    if incoming_priority > existing_priority:
+        return (new, True)  # Overwrite with the higher-authority source value
+    return (existing, True)  # Retain the existing higher-authority source value
 
 
 def _merge_businesses(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,21 +89,26 @@ def _merge_businesses(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dic
         existing_sources = [_as_source_name(existing.get("source", "unknown"))]
     sources = list(existing_sources)
 
-    source_name = _as_source_name(incoming.get("source", "unknown"))
-    if source_name not in sources:
-        sources.append(source_name)
+    incoming_source = _as_source_name(incoming.get("source", "unknown"))
+    if incoming_source not in sources:
+        sources.append(incoming_source)
+
+    # Establish the existing primary source (typically the first added)
+    primary_existing_source = existing_sources[0] if existing_sources else "unknown"
 
     for field in ["phone", "website", "facebook", "instagram", "email", "address", "opening_hours"]:
         existing_val = existing.get(field, "")
         incoming_val = incoming.get(field, "")
-        merged_val, is_conflict, _ = _merge_field(existing_val, incoming_val, source_name)
+        
+        merged_val, is_conflict = _merge_field(
+            existing_val, incoming_val, primary_existing_source, incoming_source
+        )
 
-        if merged_val and merged_val != existing_val:
-            merged[field] = merged_val
+        merged[field] = merged_val
+        
+        # Track conflict flags for UI highlighting without corrupting actual strings
         if is_conflict and field not in conflicts:
             conflicts.append(field)
-        if not merged.get(field) and incoming_val:
-            merged[field] = incoming_val
 
     if not merged.get("lat") and incoming.get("lat"):
         merged["lat"] = incoming["lat"]
@@ -141,7 +167,6 @@ def reconcile(osm_results: List[Dict[str, Any]], multi_source_results: List[Dict
 
         matched_key = None
         best_score = 0.0
-
         for osm_key, osm_biz in merged.items():
             sim = _name_similarity(name, osm_biz.get("name", ""))
             if sim > best_score and sim >= 0.75:
