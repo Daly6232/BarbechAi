@@ -101,6 +101,7 @@ def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: 
         score=score_data["score"],
         opportunity_level=score_data["opportunity_level"],
         status=status,
+        service_opportunities=",".join(score_data.get("service_opportunities", [])),
     )
     db.add(db_lead)
 
@@ -126,6 +127,7 @@ def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: 
         "has_phone": score_data["has_phone"],
         "has_email": score_data["has_email"],
         "has_address": score_data["has_address"],
+        "service_opportunities": score_data.get("service_opportunities", []),
         "status": status,
         "source": biz.get("source", []),
         "sources_used": biz.get("sources_used", ["osm"]),

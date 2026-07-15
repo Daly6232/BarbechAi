@@ -23,7 +23,6 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 DATABASE_URL = settings.DATABASE_URL
-
 engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
@@ -31,7 +30,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False,
 )
-
 Base = declarative_base()
 
 
@@ -43,11 +41,10 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     name = Column(String, nullable=False)
     role = Column(String, nullable=False, default="back_office")
-    # roles: master_admin, admin, back_office, field_agent
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
-
+    
     activities = relationship(
         "AgentActivity",
         back_populates="user",
@@ -60,8 +57,9 @@ class Business(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String)
-    category = Column(String)
-    city = Column(String)
+    # Added search indexes to prevent CPU/RAM table scans
+    category = Column(String, index=True)
+    city = Column(String, index=True)
     region = Column(String)
     address = Column(String)
     lat = Column(Float)
@@ -74,7 +72,6 @@ class Business(Base):
         back_populates="business",
         cascade="all, delete-orphan",
     )
-
     leads = relationship(
         "Lead",
         back_populates="business",
@@ -86,13 +83,11 @@ class Enrichment(Base):
     __tablename__ = "enrichment"
 
     id = Column(String, primary_key=True)
-
     business_id = Column(
         String,
         ForeignKey("businesses.id"),
         nullable=False,
     )
-
     website = Column(String)
     facebook = Column(String)
     instagram = Column(String)
@@ -120,10 +115,10 @@ class Lead(Base):
 
     score = Column(Integer)
     opportunity_level = Column(String)
-    status = Column(String, default="NEW")
-    # status: NEW, CONFIRMED, APPOINTMENT_SET, CALLBACK_SET (back office)
-    # PENDING_MEETING, MEETING_COMPLETED, PROPOSAL_SENT, NEGOTIATION,
-    # CONTRACT_SENT, CLOSED_WON, CLOSED_LOST, FOLLOW_UP (field agent)
+    status = Column(String, default="NEW", index=True)  # Indexed status queries
+
+    # Storing pitch target tags as a serialized comma-separated string
+    service_opportunities = Column(Text, nullable=True)
 
     in_crm = Column(String, default="false")
     crm_status = Column(String, default="NEW")
@@ -150,21 +145,18 @@ class Lead(Base):
     contract_sent_at = Column(DateTime)
     deal_value = Column(Float)
     decline_reason = Column(Text)
-
     created_at = Column(DateTime, default=datetime.utcnow)
 
     business = relationship(
         "Business",
         back_populates="leads",
     )
-
     pipeline = relationship(
         "CRMPipeline",
         back_populates="lead",
         uselist=False,
         cascade="all, delete-orphan",
     )
-
     activities = relationship(
         "AgentActivity",
         back_populates="lead",
@@ -176,13 +168,11 @@ class CRMPipeline(Base):
     __tablename__ = "crm_pipeline"
 
     id = Column(String, primary_key=True)
-
     lead_id = Column(
         String,
         ForeignKey("leads.id"),
         nullable=False,
     )
-
     status = Column(String, default="NEW")
     appointment_date = Column(DateTime)
     notes = Column(Text)
@@ -198,16 +188,13 @@ class AgentActivity(Base):
     __tablename__ = "agent_activity"
 
     id = Column(String, primary_key=True)
-
     agent_id = Column(String)
     user_id = Column(String, ForeignKey("users.id"))
-
     lead_id = Column(
         String,
         ForeignKey("leads.id"),
         nullable=False,
     )
-
     action = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text)
@@ -216,7 +203,6 @@ class AgentActivity(Base):
         "Lead",
         back_populates="activities",
     )
-
     user = relationship(
         "User",
         back_populates="activities",
