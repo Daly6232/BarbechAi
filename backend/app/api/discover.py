@@ -46,7 +46,7 @@ def on_enrichment_complete(business_id, enrichment_data):
             db.add(db_enrich)
         lead = db.query(Lead).filter(Lead.business_id == business_id).first()
         if lead:
-            lead.status = "ENRICHED"
+            lead.status = enrichment_data.get("status", "ENRICHED_PARTIAL")
         db.commit()
     except Exception as e:
         db.rollback()
@@ -298,11 +298,14 @@ def discover(city: str, business_type: str = "restaurant", session_id: str = "de
         "excluded_saved": len(cleaned) - len(scored_businesses),
         "returned": len(results),
     }
+PENDING_STATUSES = ["NEW", "ENRICHMENT_FAILED"]
+
+
 @router.get("/leads/pending-count")
 def pending_count():
     db = SessionLocal()
     try:
-        count = db.query(Lead).filter(Lead.status == "NEW").count()
+        count = db.query(Lead).filter(Lead.status.in_(PENDING_STATUSES)).count()
         return {"pending": count}
     finally:
         db.close()
@@ -315,7 +318,7 @@ def enrich_pending(batch_size: int = 10, session_id: str = "default"):
         pending = (
             db.query(Lead, Business)
             .join(Business, Lead.business_id == Business.id)
-            .filter(Lead.status == "NEW")
+            .filter(Lead.status.in_(PENDING_STATUSES))
             .limit(batch_size)
             .all()
         )
@@ -332,7 +335,7 @@ def enrich_pending(batch_size: int = 10, session_id: str = "default"):
                 session_id=session_id,
             )
 
-        remaining = db.query(Lead).filter(Lead.status == "NEW").count()
+        remaining = db.query(Lead).filter(Lead.status.in_(PENDING_STATUSES)).count()
         return {"queued": len(queued_ids), "remaining": remaining}
     except Exception as e:
         db.rollback()

@@ -263,13 +263,16 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
         "website": None, "facebook": None, "instagram": None,
         "phone": None, "email": None, "address": None,
         "opening_hours": None, "sources_used": [], "sources_failed": [],
-        "status": "ENRICHED",
     }
 
     with ThreadPoolExecutor(max_workers=6) as executor:
         futures = {executor.submit(fn): fn for fn in sources}
         for future in as_completed(futures):
-            result = future.result()
+            try:
+                result = future.result()
+            except Exception as e:
+                logger.warning(f"Enrichment source crashed: {e}")
+                continue
             source = result.get("source", "unknown")
             if "error" in result:
                 merged["sources_failed"].append(source)
@@ -279,6 +282,20 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
                 val = result.get(field)
                 if val and not merged[field]:
                     merged[field] = val
+
+    # Status must reflect what was actually found, not just "we tried".
+    # A lead with zero usable fields is NOT enriched — it failed and should
+    # be retryable, not silently shown as complete with blank popup fields.
+    found_any = any(
+        merged[field] for field in
+        ("website", "facebook", "instagram", "phone", "email", "address", "opening_hours")
+    )
+    if found_any:
+        merged["status"] = "ENRICHED"
+    elif merged["sources_used"]:
+        merged["status"] = "ENRICHED_PARTIAL"
+    else:
+        merged["status"] = "ENRICHMENT_FAILED"
 
     if on_complete:
         on_complete(business_id, merged)

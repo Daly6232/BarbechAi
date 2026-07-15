@@ -3,13 +3,22 @@ import bcrypt
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.security import generate_uuid
 from app.database import SessionLocal, User
 
 logger = get_logger(__name__)
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "barbechai-dev-secret-change-in-production-8f3a9c2e")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    if settings.ENVIRONMENT == "production":
+        raise RuntimeError(
+            "JWT_SECRET_KEY is not set. Refusing to start in production with no secret — "
+            "set it in Render's environment variables."
+        )
+    SECRET_KEY = "barbechai-dev-secret-change-in-production-8f3a9c2e"
+    logger.warning("JWT_SECRET_KEY not set — using insecure dev fallback. Do not use in production.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 12
 

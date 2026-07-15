@@ -91,7 +91,7 @@ export default function LeadsPage() {
     }
   }, [leads]);
 
-  const statuses = ["ALL", "NEW", "ENRICHING", "ENRICHED", "CONTACTED", "INTERESTED", "NOT_INTERESTED", "APPOINTMENT_SET"];
+  const statuses = ["ALL", "NEW", "ENRICHING", "ENRICHED", "ENRICHED_PARTIAL", "ENRICHMENT_FAILED", "CONTACTED", "INTERESTED", "NOT_INTERESTED", "APPOINTMENT_SET"];
   const cities = ["ALL", ...new Set(leads.map(l => l.city).filter(Boolean))];
   const categories = ["ALL", ...new Set(leads.map(l => l.category).filter(Boolean))];
   const opportunities = ["ALL", "HIGH", "MEDIUM", "LOW"];
@@ -247,7 +247,7 @@ export default function LeadsPage() {
                   {lead.instagram && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#e1306c", border: "1px solid #e1306c33", padding: "2px 6px", borderRadius: 3 }}>📸 IG</span>}
                   {lead.in_crm === "true" && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e", border: "1px solid #22c55e33", padding: "2px 6px", borderRadius: 3 }}>✓ CRM</span>}
                 </div>
-                <div style={{ fontFamily: "monospace", fontSize: 9, marginTop: 6, color: lead.status === "ENRICHED" ? "#22c55e" : lead.status === "ENRICHING" ? "#f5a623" : "#555" }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, marginTop: 6, color: lead.status === "ENRICHED" ? "#22c55e" : lead.status === "ENRICHING" ? "#f5a623" : lead.status === "ENRICHED_PARTIAL" ? "#4a9eff" : lead.status === "ENRICHMENT_FAILED" ? "#ff4d4d" : "#555" }}>
                   {lead.status} {lead.created_at ? `· ${new Date(lead.created_at).toLocaleDateString("fr-TN")}` : ""}
                 </div>
               </div>
