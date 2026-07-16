@@ -1,6 +1,7 @@
 fastapi
 requests
 httpx
+beautifulsoup4
 psycopg2-binary
 sqlalchemy
 uvicorn[standard]

@@ -5,11 +5,11 @@ import LeadsPage from "./pages/LeadsPage";
 import CRMPage from "./pages/CRMPage";
 import AgentPage from "./pages/AgentPage";
 import ExportPage from "./pages/ExportPage";
-
+import UsersPage from "./pages/UsersPage";
 // Which tabs each role can see
 const ROLE_PAGES = {
-  master_admin: ["Search", "Leads", "CRM", "Agent", "Export"],
-  admin: ["Search", "Leads", "CRM", "Agent", "Export"],
+  master_admin: ["Search", "Leads", "CRM", "Agent", "Export", "Users"],
+  admin: ["Search", "Leads", "CRM", "Agent", "Export", "Users"],
   back_office: ["Leads", "CRM"],
   field_agent: ["Agent"],
 };
@@ -125,6 +125,7 @@ export default function App() {
       {page === "CRM" && visiblePages.includes("CRM") && <CRMPage />}
       {page === "Agent" && visiblePages.includes("Agent") && <AgentPage user={user} />}
       {page === "Export" && visiblePages.includes("Export") && <ExportPage />}
+      {page === "Users" && visiblePages.includes("Users") && <UsersPage user={user} />}
     </div>
   );
 }

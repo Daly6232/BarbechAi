@@ -6,6 +6,7 @@ Results cross-checked and deduplicated via reconciliation engine
 """
 
 from concurrent.futures import ThreadPoolExecutor
+import re
 import requests
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -153,6 +154,36 @@ GEOAPIFY_MAP = {
     "informatique": "commercial.electronics",
     "téléphonie": "commercial.electronics",
     "fleuriste": "commercial.florist",
+}
+
+# tunisie-medicale.com — medical vertical only. Confirmed accessible (meta-robots:
+# index,follow, no bot blocking) as of this integration. Category slugs verified
+# by direct fetch; the site's own regional filter param wasn't verified against
+# live requests, so we pull unfiltered listing pages and match city client-side
+# instead — more robust than guessing an unverified query string.
+TUNISIE_MEDICALE_MAP = {
+    "dentiste": "dentiste",
+    "cabinet médical": "docteur",
+    "pharmacie": "pharmacie",
+    "vétérinaire": "veterinaire",
+    "cabinet de kinésithérapie": "kinesitherapie",
+    "laboratoire d'analyses": "laboratoire-analyse-medicale",
+    "clinique": "hopital-clinique",
+}
+
+# goafricaonline.com/tn — confirmed accessible, huge multi-category directory.
+# Only mapping the categories actually confirmed live via fetch (food/alimentation
+# vertical); add more slugs here once verified rather than guessing them.
+GOAFRICA_MAP = {
+    "restaurant": "restaurants",
+    "fast-food": "fast-food",
+    "pizzeria": "pizzeria",
+    "boulangerie": "boulangeries-patisseries",
+    "pâtisserie": "boulangeries-patisseries",
+    "boucherie": "boucheries",
+    "épicerie": "epicerie",
+    "traiteur": "traiteurs",
+    "lounge": "bars",
 }
 
 
@@ -373,6 +404,112 @@ def _search_locationiq(session: requests.Session, business_type: str, city: str,
         return []
 
 
+# ── tunisie-medicale.com ─────────────────────────────────────────────────────
+# NOTE: built from a markdown-rendered preview of the page, not raw HTML — this
+# environment has no way to inspect real DOM/class names ahead of time. Parsing
+# is anchored on the URL pattern of profile links (/index.php/{cat}/{id}-{slug})
+# rather than CSS classes, which is more resilient to markup changes but should
+# still be test-run against a live page before relying on it in production.
+
+def _search_tunisie_medicale(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
+    slug = TUNISIE_MEDICALE_MAP.get(business_type)
+    if not slug:
+        return []
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.warning("tunisie-medicale: beautifulsoup4 not installed, skipping")
+        return []
+
+    results = []
+    city_norm = city.lower().strip()
+    try:
+        # Pull first 3 pages (~60 listings); filter by city client-side since the
+        # site's own region-filter query param wasn't verified live.
+        for offset in (0, 20, 40):
+            path = f"/index.php/{slug}" if offset == 0 else f"/index.php/{slug}/index/{offset}"
+            res = session.get(f"https://tunisie-medicale.com{path}", timeout=TIMEOUT)
+            if res.status_code != 200:
+                break
+            soup = BeautifulSoup(res.text, "html.parser")
+            profile_links = soup.find_all("a", href=re.compile(rf"/index\.php/{slug}/\d+-"))
+            if not profile_links:
+                break
+            for link in profile_links:
+                name = link.get_text(strip=True)
+                if not name:
+                    continue
+                container = link.find_parent(["li", "div", "article"]) or link.parent
+                block_text = container.get_text(" ", strip=True) if container else ""
+                if city_norm not in block_text.lower():
+                    continue
+                results.append(_normalize({
+                    "name": name,
+                    "category": business_type,
+                    "address": block_text[:200],
+                    "source": ["tunisie_medicale"],
+                }))
+        logger.info("tunisie-medicale: %d for '%s' in %s", len(results), business_type, city)
+        return results
+    except Exception as e:
+        logger.warning("tunisie-medicale failed: %s", e)
+        return []
+
+
+# ── goafricaonline.com/tn ────────────────────────────────────────────────────
+# Same caveat as above: anchored on the /tn/{id}-{slug} profile-link pattern and
+# on <a href="tel:..."> for phone numbers, since those are stable regardless of
+# surrounding CSS/markup. Needs a live test run before production use.
+
+def _search_goafricaonline(session: requests.Session, business_type: str, city: str, lat: float, lng: float) -> list:
+    slug = GOAFRICA_MAP.get(business_type)
+    if not slug:
+        return []
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.warning("goafricaonline: beautifulsoup4 not installed, skipping")
+        return []
+
+    results = []
+    city_norm = city.lower().strip()
+    try:
+        for page in (1, 2, 3):
+            res = session.get(
+                f"https://www.goafricaonline.com/tn/annuaire/{slug}",
+                params={"p": page} if page > 1 else {},
+                timeout=TIMEOUT,
+            )
+            if res.status_code != 200:
+                break
+            soup = BeautifulSoup(res.text, "html.parser")
+            listing_links = soup.find_all("a", href=re.compile(r"/tn/\d+-"))
+            if not listing_links:
+                break
+            for link in listing_links:
+                name = link.get_text(strip=True)
+                if not name:
+                    continue
+                container = link.find_parent(["li", "div", "article"]) or link.parent
+                block_text = container.get_text(" ", strip=True) if container else ""
+                if city_norm not in block_text.lower():
+                    continue
+                tel_link = container.find("a", href=re.compile(r"^tel:")) if container else None
+                phone = tel_link["href"].replace("tel:", "").strip() if tel_link else ""
+                results.append(_normalize({
+                    "name": name,
+                    "category": business_type,
+                    "address": block_text[:200],
+                    "phone": phone,
+                    "source": ["goafricaonline"],
+                }))
+        logger.info("goafricaonline: %d for '%s' in %s", len(results), business_type, city)
+        return results
+    except Exception as e:
+        logger.warning("goafricaonline failed: %s", e)
+        return []
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 def discover_multi_source(city: str, business_type: str, osm_results: list) -> dict:
@@ -383,20 +520,24 @@ def discover_multi_source(city: str, business_type: str, osm_results: list) -> d
     session = requests.Session()
 
     try:
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             f_fsq = executor.submit(_search_foursquare, session, bt, city, lat, lng)
             f_tom = executor.submit(_search_tomtom, session, bt, city, lat, lng)
             f_geo = executor.submit(_search_geoapify, session, bt, city, lat, lng)
             f_liq = executor.submit(_search_locationiq, session, bt, city, lat, lng)
+            f_tnm = executor.submit(_search_tunisie_medicale, session, bt, city, lat, lng)
+            f_gao = executor.submit(_search_goafricaonline, session, bt, city, lat, lng)
 
             fsq = f_fsq.result()
             tom = f_tom.result()
             geo = f_geo.result()
             liq = f_liq.result()
+            tnm = f_tnm.result()
+            gao = f_gao.result()
     finally:
         session.close()
 
-    all_results = fsq + tom + geo + liq
+    all_results = fsq + tom + geo + liq + tnm + gao
     return {
         "all_results": all_results,
         "source_summary": {
@@ -404,6 +545,8 @@ def discover_multi_source(city: str, business_type: str, osm_results: list) -> d
             "tomtom": len(tom),
             "geoapify": len(geo),
             "locationiq": len(liq),
+            "tunisie_medicale": len(tnm),
+            "goafricaonline": len(gao),
             "total": len(all_results),
         },
     }
