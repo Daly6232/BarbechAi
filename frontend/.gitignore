@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Capacitor generated native project — regenerated fresh in CI, not committed
+android/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
