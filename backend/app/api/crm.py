@@ -9,10 +9,21 @@ from app.services.crm_pipeline import (
     add_note,
     assign_lead,
 )
+from app.services.agent_activity import get_lead_activity
 
 router = APIRouter()
 
 CRM_ROLES = ["master_admin", "admin", "back_office"]
+
+
+@router.get("/crm/lead/{lead_id}/activity")
+def lead_activity(lead_id: str, authorization: str = Header(None)):
+    """Full timeline of calls/notes/status changes for one lead, so managers
+    can actually see who contacted whom and when."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
+    return get_lead_activity(lead_id)
 
 
 @router.post("/crm/assign")

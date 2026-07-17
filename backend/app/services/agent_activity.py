@@ -88,6 +88,42 @@ def log_activity(user_id: str, lead_id: str, action: str, notes: str = "", reque
         db.close()
 
 
+def get_lead_activity(lead_id: str):
+    """Full contact/activity timeline for a single lead — every call, note,
+    and status change, with the acting user's name attached. Nothing in the
+    UI surfaced this before even though it was being logged the whole time."""
+    db = SessionLocal()
+    try:
+        from app.database import User
+
+        rows = (
+            db.query(AgentActivity, User)
+            .outerjoin(User, AgentActivity.user_id == User.id)
+            .filter(AgentActivity.lead_id == lead_id)
+            .order_by(AgentActivity.timestamp.desc())
+            .all()
+        )
+        return {
+            "count": len(rows),
+            "activity": [
+                {
+                    "id": activity.id,
+                    "action": activity.action,
+                    "notes": activity.notes or "",
+                    "timestamp": activity.timestamp.isoformat() if activity.timestamp else None,
+                    "agent_name": user.name if user else "Unknown",
+                    "agent_role": user.role if user else None,
+                }
+                for activity, user in rows
+            ],
+        }
+    except Exception as exc:
+        logger.exception(exc)
+        return {"count": 0, "activity": [], "error": str(exc)}
+    finally:
+        db.close()
+
+
 def get_my_leads(user_id: str, governorate: str = None, delegation: str = None):
     """Leads assigned to this specific agent (JWT-derived id, never a free-text param).
     Optional governorate/delegation filter for sweeping one area at a time."""
