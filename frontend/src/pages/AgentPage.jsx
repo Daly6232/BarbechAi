@@ -6,6 +6,7 @@ import { API } from "../config";
 const STAGE_LABEL = {
   NEW: "New",
   CONTACTED: "Contacted",
+  CALLBACK: "Callback",
   INTERESTED: "Interested",
   APPOINTMENT_SET: "Appointment Set",
   MEETING_DONE: "Meeting Done",
@@ -16,7 +17,7 @@ const STAGE_LABEL = {
 };
 
 const STAGE_COLOR = {
-  NEW: "#555", CONTACTED: "#4a9eff", INTERESTED: "#22c55e",
+  NEW: "#555", CONTACTED: "#4a9eff", CALLBACK: "#f5a623", INTERESTED: "#22c55e",
   APPOINTMENT_SET: "#ff4d00", MEETING_DONE: "#a855f7", PROPOSAL_SENT: "#f5a623",
   DEAL_CLOSED: "#22c55e", NOT_INTERESTED: "#666", DECLINED: "#ef4444",
 };
@@ -29,16 +30,37 @@ export default function AgentPage({ user }) {
   const [busyLeadId, setBusyLeadId] = useState(null);
   const [dealModal, setDealModal] = useState(null); // lead being closed with a deal value
   const [declineModal, setDeclineModal] = useState(null); // lead being declined with a reason
+  const [callbackModal, setCallbackModal] = useState(null); // lead being scheduled for a callback
+
+  const [viewMode, setViewMode] = useState("queue"); // "queue" | "list"
+  const [locations, setLocations] = useState({});
+  const [governorate, setGovernorate] = useState("");
+  const [delegation, setDelegation] = useState("");
+  const [skippedIds, setSkippedIds] = useState(new Set()); // session-only "come back later" for the queue
+
+  // tel: links only open a real dialer on a device that has one (phone/APK).
+  // On a PC there's nothing to hand off to, so don't pretend there is —
+  // show a copy-the-number action there instead.
+  const isNativeOrMobile = typeof window !== "undefined" &&
+    (window.Capacitor?.isNativePlatform?.() || /Android|iPhone/i.test(navigator.userAgent));
 
   useEffect(() => {
     load();
+    apiFetch(`${API}/agent/locations`).then(r => r.json()).then(d => setLocations(d.locations || {})).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [governorate, delegation]);
 
   const load = async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (governorate) params.set("governorate", governorate);
+      if (delegation) params.set("delegation", delegation);
       const [leadsRes, statsRes] = await Promise.all([
-        apiFetch(`${API}/agent/my-leads`),
+        apiFetch(`${API}/agent/my-leads?${params.toString()}`),
         apiFetch(`${API}/agent/stats`),
       ]);
       const leadsData = await leadsRes.json();
@@ -73,11 +95,39 @@ export default function AgentPage({ user }) {
 
   const markContacted = (lead) => updateLead(lead.id, { status: "CONTACTED" }, "CONTACTED");
   const markInterested = (lead) => updateLead(lead.id, { status: "INTERESTED" }, "INTERESTED");
+  const markNoAnswer = (lead) => updateLead(lead.id, {}, "NO_ANSWER");
+  const confirmCallback = async () => {
+    if (!callbackModal || !callbackModal.when) return;
+    await updateLead(callbackModal.lead.id, { status: "CALLBACK", appointment_date: callbackModal.when }, "CALLBACK");
+    setSkippedIds(prev => new Set(prev).add(callbackModal.lead.id));
+    setCallbackModal(null);
+  };
   const setAppointment = (lead) => {
     const when = window.prompt("Appointment date/time (e.g. 2026-07-20T14:00)");
     if (!when) return;
     updateLead(lead.id, { status: "APPOINTMENT_SET", appointment_date: when }, "APPOINTMENT_SET");
   };
+
+  // Queue-mode wrappers: same underlying calls, plus session-scoped skip so a
+  // "no answer" doesn't just re-show the same top-priority lead forever.
+  const qCall = (lead) => {
+    if (isNativeOrMobile) {
+      window.location.href = `tel:${lead.phone}`;
+    } else {
+      navigator.clipboard?.writeText(lead.phone).catch(() => {});
+    }
+  };
+  const qNoAnswer = (lead) => {
+    markNoAnswer(lead);
+    setSkippedIds(prev => new Set(prev).add(lead.id));
+  };
+  const qInterested = (lead) => {
+    markInterested(lead);
+    setSkippedIds(prev => new Set(prev).add(lead.id));
+  };
+  const qDecline = (lead) => setDeclineModal({ lead, reason: "" }); // skip added in confirmDecline
+  const qCallback = (lead) => setCallbackModal({ lead, when: "" });
+  const resetSkipped = () => setSkippedIds(new Set());
   const markMeetingDone = (lead) =>
     updateLead(lead.id, { status: "MEETING_DONE", meeting_completed_at: new Date().toISOString() }, "MEETING_DONE");
   const markProposalSent = (lead) =>
@@ -101,10 +151,16 @@ export default function AgentPage({ user }) {
       status: "NOT_INTERESTED",
       decline_reason: declineModal.reason || "No reason given",
     }, "NOT_INTERESTED");
+    setSkippedIds(prev => new Set(prev).add(declineModal.lead.id));
     setDeclineModal(null);
   };
 
   const scoreColor = (score) => score >= 71 ? "#ff4d00" : score >= 41 ? "#f5a623" : "#4a9eff";
+
+  const queueList = leads
+    .filter(l => ["NEW", "CONTACTED", "CALLBACK"].includes(l.status) && !skippedIds.has(l.id))
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+  const currentQueueLead = queueList[0] || null;
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "32px 16px" }}>
@@ -117,6 +173,7 @@ export default function AgentPage({ user }) {
       {stats && (
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           {[
+            ["APPELS AUJOURD'HUI", stats.calls_today || 0, "#ff4d00"],
             ["ASSIGNED", stats.total_assigned || 0, "#555"],
             ["CONTACTED", stats.contacted || 0, "#4a9eff"],
             ["INTERESTED", stats.interested || 0, "#22c55e"],
@@ -131,7 +188,80 @@ export default function AgentPage({ user }) {
         </div>
       )}
 
-      {loading ? (
+      {/* Mode toggle + area filter */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "center" }}>
+        <ActionBtn onClick={() => setViewMode("queue")} disabled={false} highlight={viewMode === "queue"}>📞 File d'appel</ActionBtn>
+        <ActionBtn onClick={() => setViewMode("list")} disabled={false} highlight={viewMode === "list"}>☰ Liste</ActionBtn>
+
+        <div style={{ width: 1, height: 20, background: "#333", margin: "0 4px" }} />
+
+        <select value={governorate} onChange={(e) => { setGovernorate(e.target.value); setDelegation(""); }}
+          style={{ background: "#161616", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
+          <option value="">Tous les gouvernorats</option>
+          {Object.keys(locations).map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+
+        {governorate && (
+          <select value={delegation} onChange={(e) => setDelegation(e.target.value)}
+            style={{ background: "#161616", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
+            <option value="">Toutes les délégations</option>
+            {(locations[governorate] || []).map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+
+        {viewMode === "queue" && skippedIds.size > 0 && (
+          <ActionBtn onClick={resetSkipped} disabled={false}>↺ Revoir les {skippedIds.size} passés</ActionBtn>
+        )}
+      </div>
+
+      {viewMode === "queue" ? (
+        loading ? (
+          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
+        ) : !currentQueueLead ? (
+          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#333", textAlign: "center", padding: 40 }}>
+            File d'appel vide. {skippedIds.size > 0 ? "Tout a été traité ou passé pour l'instant." : "Aucun lead à appeler."}
+          </div>
+        ) : (
+          <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `4px solid ${scoreColor(currentQueueLead.score)}`, borderRadius: 8, padding: 24, maxWidth: 480, margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ background: scoreColor(currentQueueLead.score), color: "#fff", fontFamily: "monospace", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 3 }}>
+                SCORE {currentQueueLead.score}
+              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: STAGE_COLOR[currentQueueLead.status] || "#555" }}>
+                {STAGE_LABEL[currentQueueLead.status] || currentQueueLead.status}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>{currentQueueLead.name}</div>
+            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", marginBottom: 12 }}>
+              {currentQueueLead.category?.toUpperCase()} · {currentQueueLead.city}{currentQueueLead.governorate ? ` (${currentQueueLead.governorate})` : ""}
+            </div>
+            {currentQueueLead.address && <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{currentQueueLead.address}</div>}
+
+            {currentQueueLead.phone ? (
+              <button onClick={() => qCall(currentQueueLead)} style={{
+                width: "100%", background: "#ff4d00", color: "#fff", border: "none", borderRadius: 6,
+                padding: "16px", fontSize: 16, fontWeight: 800, marginBottom: 16, cursor: "pointer",
+              }}>
+                {isNativeOrMobile ? `📞 Appeler ${currentQueueLead.phone}` : `📋 Copier ${currentQueueLead.phone}`}
+              </button>
+            ) : (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#666", marginBottom: 16 }}>Pas de numéro de téléphone</div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <ActionBtn onClick={() => qNoAnswer(currentQueueLead)}>Pas de réponse</ActionBtn>
+              <ActionBtn onClick={() => qCallback(currentQueueLead)}>Rappeler plus tard</ActionBtn>
+              <ActionBtn onClick={() => qInterested(currentQueueLead)}>Intéressé</ActionBtn>
+              <ActionBtn danger onClick={() => qDecline(currentQueueLead)}>Pas intéressé</ActionBtn>
+            </div>
+
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#333", marginTop: 16, textAlign: "center" }}>
+              {queueList.length} restant{queueList.length > 1 ? "s" : ""} dans la file
+            </div>
+          </div>
+        )
+      ) : loading ? (
         <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
       ) : leads.length === 0 ? (
         <div style={{ fontFamily: "monospace", fontSize: 13, color: "#333", textAlign: "center", padding: 40 }}>
@@ -227,16 +357,29 @@ export default function AgentPage({ user }) {
           <ActionBtn danger onClick={confirmDecline}>Confirm</ActionBtn>
         </Modal>
       )}
+
+      {callbackModal && (
+        <Modal onClose={() => setCallbackModal(null)} title={`Rappeler — ${callbackModal.lead.name}`}>
+          <input
+            type="datetime-local"
+            value={callbackModal.when}
+            onChange={(e) => setCallbackModal({ ...callbackModal, when: e.target.value })}
+            style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
+            autoFocus
+          />
+          <ActionBtn onClick={confirmCallback} disabled={!callbackModal.when}>Confirm</ActionBtn>
+        </Modal>
+      )}
     </div>
   );
 }
 
-function ActionBtn({ children, onClick, disabled, danger }) {
+function ActionBtn({ children, onClick, disabled, danger, highlight }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      background: "transparent",
-      border: `1px solid ${danger ? "#ef444466" : "#3a3a3a"}`,
-      color: danger ? "#ef4444" : "#ccc",
+      background: highlight ? "#ff4d00" : "transparent",
+      border: `1px solid ${danger ? "#ef444466" : highlight ? "#ff4d00" : "#3a3a3a"}`,
+      color: highlight ? "#fff" : danger ? "#ef4444" : "#ccc",
       borderRadius: 3, padding: "5px 12px", fontFamily: "monospace", fontSize: 10,
       cursor: disabled ? "default" : "pointer", letterSpacing: 1,
     }}>{children}</button>

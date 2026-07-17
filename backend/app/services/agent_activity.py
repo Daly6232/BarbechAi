@@ -1,10 +1,16 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from app.core.logging import get_logger
 from app.core.security import generate_uuid
 from app.database import SessionLocal, Lead, Business, Enrichment, AgentActivity
+from app.data.tunisia_locations import LOCATIONS
 
 logger = get_logger(__name__)
+
+# Reverse map: "La Soukra" -> "Ariana", built once at import time.
+_CITY_TO_GOVERNORATE = {
+    city: gov for gov, cities in LOCATIONS.items() for city in cities
+}
 
 
 def _lead_to_dict(lead, business, enrichment):
@@ -14,6 +20,7 @@ def _lead_to_dict(lead, business, enrichment):
         "name": business.name if business else "",
         "category": business.category if business else "",
         "city": business.city if business else "",
+        "governorate": _CITY_TO_GOVERNORATE.get(business.city, "") if business else "",
         "address": enrichment.address if enrichment and enrichment.address else (business.address if business else ""),
         "phone": enrichment.phone if enrichment else "",
         "email": enrichment.email if enrichment else "",
@@ -76,8 +83,9 @@ def log_activity(user_id: str, lead_id: str, action: str, notes: str = ""):
         db.close()
 
 
-def get_my_leads(user_id: str):
-    """Leads assigned to this specific agent (JWT-derived id, never a free-text param)."""
+def get_my_leads(user_id: str, governorate: str = None, delegation: str = None):
+    """Leads assigned to this specific agent (JWT-derived id, never a free-text param).
+    Optional governorate/delegation filter for sweeping one area at a time."""
     db = SessionLocal()
     try:
         leads = (
@@ -90,7 +98,12 @@ def get_my_leads(user_id: str):
         for lead in leads:
             business = db.query(Business).filter(Business.id == lead.business_id).first()
             enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
-            results.append(_lead_to_dict(lead, business, enrichment))
+            entry = _lead_to_dict(lead, business, enrichment)
+            if delegation and business and business.city != delegation:
+                continue
+            if governorate and entry["governorate"] != governorate:
+                continue
+            results.append(entry)
         return {"count": len(results), "leads": results}
     except Exception as exc:
         logger.exception(exc)
@@ -167,6 +180,14 @@ def get_agent_stats(user_id: str):
         activity_count = (
             db.query(AgentActivity).filter(AgentActivity.agent_id == user_id).count()
         )
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        calls_today = (
+            db.query(AgentActivity)
+            .filter(AgentActivity.agent_id == user_id)
+            .filter(AgentActivity.timestamp >= today_start)
+            .filter(AgentActivity.action.in_(["CONTACTED", "NO_ANSWER", "CALLBACK", "INTERESTED", "NOT_INTERESTED"]))
+            .count()
+        )
 
         return {
             "agent_id": user_id,
@@ -177,13 +198,14 @@ def get_agent_stats(user_id: str):
             "deals_closed": deals_closed,
             "total_deal_value": total_deal_value,
             "total_actions": activity_count,
+            "calls_today": calls_today,
         }
     except Exception as exc:
         logger.exception(exc)
         return {
             "agent_id": user_id, "total_assigned": 0, "contacted": 0,
             "interested": 0, "appointments": 0, "deals_closed": 0,
-            "total_deal_value": 0, "total_actions": 0, "error": str(exc),
+            "total_deal_value": 0, "total_actions": 0, "calls_today": 0, "error": str(exc),
         }
     finally:
         db.close()

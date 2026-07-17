@@ -9,6 +9,7 @@ from app.services.agent_activity import (
     update_agent_lead,
     get_agent_stats,
 )
+from app.data.tunisia_locations import LOCATIONS
 
 router = APIRouter()
 
@@ -30,14 +31,21 @@ class LeadUpdate(BaseModel):
     crm_notes: Optional[str] = None
 
 
+@router.get("/agent/locations")
+def locations():
+    """Governorate -> delegations, for the queue's area filter. Public within
+    the app (no sensitive data), still requires no special role."""
+    return {"locations": LOCATIONS}
+
+
 @router.get("/agent/my-leads")
-def my_leads(authorization: str = Header(None)):
+def my_leads(governorate: str = None, delegation: str = None, authorization: str = Header(None)):
     """Leads assigned to the currently authenticated agent. Scoped by JWT
     identity — an agent can never pass someone else's id to see their leads."""
     user, error = require_auth(authorization, AGENT_ROLES)
     if error:
         return error
-    return get_my_leads(user["id"])
+    return get_my_leads(user["id"], governorate=governorate, delegation=delegation)
 
 
 @router.post("/agent/log")
