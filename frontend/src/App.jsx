@@ -6,6 +6,10 @@ import CRMPage from "./pages/CRMPage";
 import AgentPage from "./pages/AgentPage";
 import ExportPage from "./pages/ExportPage";
 import UsersPage from "./pages/UsersPage";
+import { setAuthExpiredHandler } from "./api";
+import { theme } from "./theme";
+import logo from "./assets/zayer-logo.png";
+
 // Which tabs each role can see
 const ROLE_PAGES = {
   master_admin: ["Search", "Leads", "CRM", "Agent", "Export", "Users"],
@@ -19,6 +23,21 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [page, setPage] = useState(null);
   const [checking, setChecking] = useState(true);
+
+  const handleLogout = () => {
+    localStorage.removeItem("barbechai_token");
+    localStorage.removeItem("barbechai_user");
+    setUser(null);
+    setToken(null);
+    setPage(null);
+  };
+
+  useEffect(() => {
+    // Whenever any API call comes back with an auth failure (expired/invalid
+    // token), fall straight back to the login screen instead of leaving a
+    // silently-broken page on screen.
+    setAuthExpiredHandler(handleLogout);
+  }, []);
 
   useEffect(() => {
     const savedToken = localStorage.getItem("barbechai_token");
@@ -42,18 +61,10 @@ export default function App() {
     setPage(pages[0] || null);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("barbechai_token");
-    localStorage.removeItem("barbechai_user");
-    setUser(null);
-    setToken(null);
-    setPage(null);
-  };
-
   if (checking) {
     return (
-      <div style={{ minHeight: "100vh", background: "#161616", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "monospace", fontSize: 12, color: "#444" }}>Chargement...</div>
+      <div style={{ minHeight: "100vh", background: theme.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "monospace", fontSize: 12, color: theme.textMuted }}>Chargement...</div>
       </div>
     );
   }
@@ -71,46 +82,47 @@ export default function App() {
   }[user.role] || user.role;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#161616", color: "#f0f0f0", fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: theme.bg, color: theme.text, fontFamily: "'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #111; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: ${theme.divider}; }
+        ::-webkit-scrollbar-thumb { background: ${theme.borderStrong}; border-radius: 3px; }
       `}</style>
 
       {/* Header */}
-      <div style={{ borderBottom: "1px solid #1a1a1a", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ background: theme.card, borderBottom: `1px solid ${theme.divider}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: "#ff4d00", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "#fff" }}>B</div>
+          <img src={logo} alt="ZAYER Digital" style={{ height: 32, width: "auto" }} />
+          <div style={{ width: 1, height: 28, background: theme.divider }} />
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>BarbechAI</div>
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>TUNISIA BUSINESS INTELLIGENCE</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: theme.navy }}>BarbechAi</div>
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.gold, letterSpacing: 2 }}>BY ZAYER DIGITAL</div>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           {visiblePages.map(p => (
             <button key={p} onClick={() => setPage(p)} style={{
-              background: page === p ? "#ff4d00" : "transparent",
-              color: page === p ? "#fff" : "#555",
-              border: "1px solid " + (page === p ? "#ff4d00" : "#333333"),
+              background: page === p ? theme.navy : "transparent",
+              color: page === p ? "#fff" : theme.textMuted,
+              border: "1px solid " + (page === p ? theme.navy : theme.border),
               borderRadius: 4, padding: "6px 12px",
               fontFamily: "monospace", fontSize: 11,
               cursor: "pointer", letterSpacing: 1,
             }}>{p.toUpperCase()}</button>
           ))}
 
-          <div style={{ width: 1, height: 20, background: "#333333", margin: "0 6px" }} />
+          <div style={{ width: 1, height: 20, background: theme.border, margin: "0 6px" }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#f0f0f0" }}>{user.name}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 8, color: "#ff4d00", letterSpacing: 1 }}>{roleLabel}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: theme.text }}>{user.name}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 8, color: theme.gold, letterSpacing: 1 }}>{roleLabel}</div>
             </div>
             <button onClick={handleLogout} style={{
-              background: "transparent", border: "1px solid #333", color: "#888",
+              background: "transparent", border: `1px solid ${theme.border}`, color: theme.textMuted,
               borderRadius: 4, padding: "5px 10px", fontFamily: "monospace", fontSize: 10, cursor: "pointer",
             }}>
               ↪ SORTIR

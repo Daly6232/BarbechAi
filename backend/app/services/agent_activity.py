@@ -45,7 +45,7 @@ def _lead_to_dict(lead, business, enrichment):
     }
 
 
-def log_activity(user_id: str, lead_id: str, action: str, notes: str = ""):
+def log_activity(user_id: str, lead_id: str, action: str, notes: str = "", requester_role: str = None, requester_name: str = ""):
     """Persist an agent action to the AgentActivity table (survives restarts,
     unlike the old in-memory dict this replaced)."""
     db = SessionLocal()
@@ -61,10 +61,15 @@ def log_activity(user_id: str, lead_id: str, action: str, notes: str = ""):
         )
         db.add(entry)
 
-        # Auto-assign on first contact if nobody has claimed this lead yet.
+        # Auto-assign on first contact if nobody has claimed this lead yet —
+        # but only when the actor is an actual field_agent. back_office/admin
+        # users can also call this endpoint to log notes; they must never be
+        # silently recorded as the lead's field agent, and the name is always
+        # set together with the id so the CRM never shows a blank owner.
         lead = db.query(Lead).filter(Lead.id == lead_id).first()
-        if lead and not lead.assigned_field_agent:
+        if lead and not lead.assigned_field_agent and requester_role == "field_agent":
             lead.assigned_field_agent = user_id
+            lead.assigned_agent_name = requester_name
 
         db.commit()
         return {

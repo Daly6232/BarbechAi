@@ -143,9 +143,13 @@ def list_agents(requester_role: str):
     if requester_role not in ["admin", "master_admin"]:
         return {"error": "Insufficient permissions"}
 
+    visible_roles = ["back_office", "field_agent"]
+    if requester_role == "master_admin":
+        visible_roles.append("admin")
+
     db = SessionLocal()
     try:
-        users = db.query(User).filter(User.role.in_(["back_office", "field_agent"])).all()
+        users = db.query(User).filter(User.role.in_(visible_roles)).all()
         return {
             "agents": [
                 {
@@ -159,6 +163,53 @@ def list_agents(requester_role: str):
                 for u in users
             ]
         }
+    finally:
+        db.close()
+
+
+def set_user_active(requester_role: str, user_id: str, is_active: bool):
+    """Activate/deactivate an account. Only admin/master_admin may do this,
+    and only master_admin may touch another admin's account."""
+    if requester_role not in ("admin", "master_admin"):
+        return {"error": "Insufficient permissions"}
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        if user.role in ("admin", "master_admin") and requester_role != "master_admin":
+            return {"error": "Only master_admin can modify admin accounts"}
+        user.is_active = is_active
+        db.commit()
+        return {"success": True, "user_id": user.id, "is_active": user.is_active}
+    except Exception as e:
+        db.rollback()
+        logger.exception(e)
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+def reset_user_password(requester_role: str, user_id: str, new_password: str):
+    """Admin-initiated password reset for an office/field account."""
+    if requester_role not in ("admin", "master_admin"):
+        return {"error": "Insufficient permissions"}
+    if len(new_password) < 8:
+        return {"error": "Password must be at least 8 characters"}
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"error": "User not found"}
+        if user.role in ("admin", "master_admin") and requester_role != "master_admin":
+            return {"error": "Only master_admin can modify admin accounts"}
+        user.password_hash = hash_password(new_password)
+        db.commit()
+        return {"success": True, "user_id": user.id}
+    except Exception as e:
+        db.rollback()
+        logger.exception(e)
+        return {"error": str(e)}
     finally:
         db.close()
 

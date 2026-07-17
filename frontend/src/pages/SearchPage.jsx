@@ -4,11 +4,11 @@ import { TUNISIA_DATA, GOVERNORATES, BUSINESS_TYPES } from "../data/tunisia";
 
 import { API, WS_BASE } from "../config";
 
-const scoreColor = (s) => s >= 71 ? "#ff4d00" : s >= 41 ? "#f5a623" : "#4a9eff";
+const scoreColor = (s) => s >= 71 ? "#121830" : s >= 41 ? "#f5a623" : "#4a9eff";
 const scoreLabel = (s) => s >= 71 ? "HIGH" : s >= 41 ? "MEDIUM" : "LOW";
 const tagStyle = (color) => ({ fontFamily: "monospace", fontSize: 9, color, border: `1px solid ${color}33`, padding: "2px 6px", borderRadius: 3, background: `${color}11` });
-const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
-const selectStyle = { width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
+const selectStyle = { width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 5, color: "#121830", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
 
 export default function SearchPage() {
   const [governorate, setGovernorate] = useState("Tunis");
@@ -136,15 +136,15 @@ export default function SearchPage() {
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
       {/* Title */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 3, marginBottom: 8 }}>DISCOVER LEADS</div>
+        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>DISCOVER LEADS</div>
         <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -1, lineHeight: 1.1 }}>
           Find businesses<br />
-          <span style={{ color: "#3a3a3a" }}>missing online presence.</span>
+          <span style={{ color: "#D7DAE1" }}>missing online presence.</span>
         </h1>
       </div>
 
       {/* Search Form */}
-      <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 8, padding: 16, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ flex: 2, minWidth: 160 }}>
             <div style={labelStyle}>Type de commerce</div>
@@ -170,8 +170,8 @@ export default function SearchPage() {
           </div>
         </div>
         <button onClick={search} disabled={scanning} style={{
-          width: "100%", background: scanning ? "#1a1a1a" : "#ff4d00",
-          color: scanning ? "#444" : "#fff", border: "none", borderRadius: 6,
+          width: "100%", background: scanning ? "#E5E7EB" : "#121830",
+          color: scanning ? "#6B7280" : "#fff", border: "none", borderRadius: 6,
           padding: "13px", fontSize: 14, fontWeight: 700,
           cursor: scanning ? "not-allowed" : "pointer",
         }}>
@@ -182,13 +182,13 @@ export default function SearchPage() {
         {scanning && (
           <div style={{ marginTop: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444" }}>{progressLabel}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00" }}>{progress}%</div>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280" }}>{progressLabel}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830" }}>{progress}%</div>
             </div>
-            <div style={{ height: 4, background: "#1a1a1a", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ height: 4, background: "#E5E7EB", borderRadius: 2, overflow: "hidden" }}>
               <div style={{
                 height: "100%", width: `${progress}%`,
-                background: progress === 100 ? "#22c55e" : "#ff4d00",
+                background: progress === 100 ? "#22c55e" : "#121830",
                 borderRadius: 2, transition: "width 0.5s ease"
               }} />
             </div>
@@ -197,7 +197,7 @@ export default function SearchPage() {
       </div>
 
       {error && (
-        <div style={{ background: "#1a0a0a", border: "1px solid #ff4d0033", borderRadius: 6, padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "#ff4d00", marginBottom: 16 }}>
+        <div style={{ background: "#FBF3E7", border: "1px solid #C4A26455", borderRadius: 6, padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "#8A6D2F", marginBottom: 16 }}>
           ⚠ {error}
         </div>
       )}
@@ -205,10 +205,10 @@ export default function SearchPage() {
       {/* Stats */}
       {results.length > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          {[["HIGH", high, "#ff4d00"], ["MED", medium, "#f5a623"], ["LOW", low, "#4a9eff"], ["TOTAL", results.length, "#555"], ["ENRICHED", enriched, "#22c55e"]].map(([l, v, c]) => (
-            <div key={l} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+          {[["HIGH", high, "#121830"], ["MED", medium, "#f5a623"], ["LOW", low, "#4a9eff"], ["TOTAL", results.length, "#6B7280"], ["ENRICHED", enriched, "#22c55e"]].map(([l, v, c]) => (
+            <div key={l} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
               <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: c }}>{v}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2 }}>{l}</div>
             </div>
           ))}
         </div>
@@ -218,18 +218,18 @@ export default function SearchPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {results.map((biz, i) => (
           <div key={biz.id || i} onClick={() => setSelected(biz)}
-            style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(biz.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer" }}>
+            style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderLeft: `3px solid ${scoreColor(biz.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0" }}>{biz.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#121830" }}>{biz.name}</div>
                   {biz.is_new_discovery && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e", border: "1px solid #22c55e44", padding: "1px 5px", borderRadius: 3 }}>🆕</span>}
                   {biz.has_conflicts && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#f5a623", border: "1px solid #f5a62344", padding: "1px 5px", borderRadius: 3 }}>⚠</span>}
                 </div>
-                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 3 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", letterSpacing: 1, marginBottom: 3 }}>
                   {biz.category?.toUpperCase()} · {biz.city}
                 </div>
-                {biz.address && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444", marginBottom: 2 }}>📍 {biz.address}</div>}
+                {biz.address && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", marginBottom: 2 }}>📍 {biz.address}</div>}
                 {biz.phone && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#4a9eff", marginBottom: 4 }}>📞 {biz.phone}</div>}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
                   {biz.website && <span style={tagStyle("#4a9eff")}>🌐 WEB</span>}

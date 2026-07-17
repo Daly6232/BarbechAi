@@ -55,12 +55,12 @@ export default function ExportPage() {
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "32px 16px" }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 3, marginBottom: 8 }}>EXPORT CENTER</div>
+        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>EXPORT CENTER</div>
         <h1 style={{ fontSize: 28, fontWeight: 800 }}>Export Leads</h1>
       </div>
 
       {/* Filters */}
-      <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 8, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 8, padding: 20, marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ flex: 1, minWidth: 130 }}>
             <div style={labelStyle}>Status</div>
@@ -83,12 +83,12 @@ export default function ExportPage() {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ background: "#1a1a1a", border: "1px solid #3a3a3a", borderRadius: 6, padding: "12px 20px", fontFamily: "monospace", fontSize: 13, color: "#f0f0f0" }}>
+          <div style={{ background: "#E5E7EB", border: "1px solid #D7DAE1", borderRadius: 6, padding: "12px 20px", fontFamily: "monospace", fontSize: 13, color: "#121830" }}>
             {filtered.length} leads selected
           </div>
           <button onClick={exportCSV} disabled={filtered.length === 0} style={{
-            flex: 1, background: filtered.length === 0 ? "#1a1a1a" : "#ff4d00",
-            color: filtered.length === 0 ? "#444" : "#fff",
+            flex: 1, background: filtered.length === 0 ? "#E5E7EB" : "#121830",
+            color: filtered.length === 0 ? "#6B7280" : "#fff",
             border: "none", borderRadius: 6, padding: "12px",
             fontFamily: "monospace", fontSize: 12, fontWeight: 700,
             cursor: filtered.length === 0 ? "not-allowed" : "pointer", letterSpacing: 1,
@@ -98,20 +98,20 @@ export default function ExportPage() {
 
       {/* Preview */}
       {loading ? (
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
+        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#6B7280", textAlign: "center", padding: 40 }}>Loading...</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.slice(0, 20).map((lead, i) => (
-            <div key={i} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 5, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div key={i} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 5, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f0f0" }}>{lead.name}</div>
-                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", marginTop: 2 }}>{lead.category} · {lead.city} · {lead.status}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#121830" }}>{lead.name}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", marginTop: 2 }}>{lead.category} · {lead.city} · {lead.status}</div>
               </div>
-              <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: lead.score >= 71 ? "#ff4d00" : lead.score >= 41 ? "#f5a623" : "#4a9eff" }}>{lead.score}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 800, color: lead.score >= 71 ? "#121830" : lead.score >= 41 ? "#f5a623" : "#4a9eff" }}>{lead.score}</div>
             </div>
           ))}
           {filtered.length > 20 && (
-            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#444", textAlign: "center", padding: 12 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6B7280", textAlign: "center", padding: 12 }}>
               +{filtered.length - 20} more in export
             </div>
           )}
@@ -121,5 +121,5 @@ export default function ExportPage() {
   );
 }
 
-const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
-const selectStyle = { width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
+const selectStyle = { width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 5, color: "#121830", padding: "9px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };

@@ -53,7 +53,12 @@ def log(lead_id: str, action: str, notes: str = "", authorization: str = Header(
     user, error = require_auth(authorization, AGENT_ROLES)
     if error:
         return error
-    return log_activity(user["id"], lead_id, action, notes)
+    # Only a real field_agent logging their own activity should ever trigger
+    # auto-assignment. Previously back_office/admin calling this endpoint
+    # (also permitted here) could silently become "assigned_field_agent" on
+    # an unclaimed lead with no name attached — this is what caused leads to
+    # vanish from the actual field agent's queue with a blank owner shown in CRM.
+    return log_activity(user["id"], lead_id, action, notes, requester_role=user["role"], requester_name=user["name"])
 
 
 @router.post("/agent/lead/{lead_id}/update")

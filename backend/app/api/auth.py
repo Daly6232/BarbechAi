@@ -1,7 +1,24 @@
 from fastapi import APIRouter, Header
-from app.services.auth import register_user, login_user, get_current_user, list_agents
+from app.services.auth import (
+    register_user,
+    login_user,
+    get_current_user,
+    list_agents,
+    set_user_active,
+    reset_user_password,
+)
 
 router = APIRouter()
+
+
+def _require_requester(authorization: str):
+    if not authorization:
+        return None, {"error": "No token provided"}
+    token = authorization.replace("Bearer ", "")
+    user = get_current_user(token)
+    if not user:
+        return None, {"error": "Invalid or expired token"}
+    return user, None
 
 
 @router.post("/auth/register")
@@ -47,3 +64,27 @@ def agents(authorization: str = Header(None)):
     if not user:
         return {"error": "Invalid or expired token"}
     return list_agents(user["role"])
+
+
+@router.post("/auth/deactivate")
+def deactivate(user_id: str, authorization: str = Header(None)):
+    requester, error = _require_requester(authorization)
+    if error:
+        return error
+    return set_user_active(requester["role"], user_id, False)
+
+
+@router.post("/auth/reactivate")
+def reactivate(user_id: str, authorization: str = Header(None)):
+    requester, error = _require_requester(authorization)
+    if error:
+        return error
+    return set_user_active(requester["role"], user_id, True)
+
+
+@router.post("/auth/reset-password")
+def reset_password(user_id: str, new_password: str, authorization: str = Header(None)):
+    requester, error = _require_requester(authorization)
+    if error:
+        return error
+    return reset_user_password(requester["role"], user_id, new_password)

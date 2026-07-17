@@ -17,9 +17,9 @@ const STAGE_LABEL = {
 };
 
 const STAGE_COLOR = {
-  NEW: "#555", CONTACTED: "#4a9eff", CALLBACK: "#f5a623", INTERESTED: "#22c55e",
-  APPOINTMENT_SET: "#ff4d00", MEETING_DONE: "#a855f7", PROPOSAL_SENT: "#f5a623",
-  DEAL_CLOSED: "#22c55e", NOT_INTERESTED: "#666", DECLINED: "#ef4444",
+  NEW: "#6B7280", CONTACTED: "#4a9eff", CALLBACK: "#f5a623", INTERESTED: "#22c55e",
+  APPOINTMENT_SET: "#121830", MEETING_DONE: "#a855f7", PROPOSAL_SENT: "#f5a623",
+  DEAL_CLOSED: "#22c55e", NOT_INTERESTED: "#6B7280", DECLINED: "#ef4444",
 };
 
 export default function AgentPage({ user }) {
@@ -155,7 +155,7 @@ export default function AgentPage({ user }) {
     setDeclineModal(null);
   };
 
-  const scoreColor = (score) => score >= 71 ? "#ff4d00" : score >= 41 ? "#f5a623" : "#4a9eff";
+  const scoreColor = (score) => score >= 71 ? "#121830" : score >= 41 ? "#f5a623" : "#4a9eff";
 
   const queueList = leads
     .filter(l => ["NEW", "CONTACTED", "CALLBACK"].includes(l.status) && !skippedIds.has(l.id))
@@ -165,24 +165,24 @@ export default function AgentPage({ user }) {
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "32px 16px" }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 3, marginBottom: 8 }}>AGENT PANEL</div>
+        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>AGENT PANEL</div>
         <h1 style={{ fontSize: 28, fontWeight: 800 }}>My Assigned Leads</h1>
-        {user?.name && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", marginTop: 4 }}>{user.name}</div>}
+        {user?.name && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6B7280", marginTop: 4 }}>{user.name}</div>}
       </div>
 
       {stats && (
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           {[
-            ["APPELS AUJOURD'HUI", stats.calls_today || 0, "#ff4d00"],
-            ["ASSIGNED", stats.total_assigned || 0, "#555"],
+            ["APPELS AUJOURD'HUI", stats.calls_today || 0, "#121830"],
+            ["ASSIGNED", stats.total_assigned || 0, "#6B7280"],
             ["CONTACTED", stats.contacted || 0, "#4a9eff"],
             ["INTERESTED", stats.interested || 0, "#22c55e"],
-            ["APPOINTMENTS", stats.appointments || 0, "#ff4d00"],
+            ["APPOINTMENTS", stats.appointments || 0, "#121830"],
             ["DEALS", stats.deals_closed || 0, "#22c55e"],
           ].map(([l, v, c]) => (
-            <div key={l} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+            <div key={l} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
               <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: c }}>{v}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2 }}>{l}</div>
             </div>
           ))}
         </div>
@@ -193,17 +193,17 @@ export default function AgentPage({ user }) {
         <ActionBtn onClick={() => setViewMode("queue")} disabled={false} highlight={viewMode === "queue"}>📞 File d'appel</ActionBtn>
         <ActionBtn onClick={() => setViewMode("list")} disabled={false} highlight={viewMode === "list"}>☰ Liste</ActionBtn>
 
-        <div style={{ width: 1, height: 20, background: "#333", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 20, background: "#9AA0AC", margin: "0 4px" }} />
 
         <select value={governorate} onChange={(e) => { setGovernorate(e.target.value); setDelegation(""); }}
-          style={{ background: "#161616", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
+          style={{ background: "#F5F6F8", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
           <option value="">Tous les gouvernorats</option>
           {Object.keys(locations).map(g => <option key={g} value={g}>{g}</option>)}
         </select>
 
         {governorate && (
           <select value={delegation} onChange={(e) => setDelegation(e.target.value)}
-            style={{ background: "#161616", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
+            style={{ background: "#F5F6F8", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 3, padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>
             <option value="">Toutes les délégations</option>
             {(locations[governorate] || []).map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -216,37 +216,37 @@ export default function AgentPage({ user }) {
 
       {viewMode === "queue" ? (
         loading ? (
-          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
+          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#6B7280", textAlign: "center", padding: 40 }}>Loading...</div>
         ) : !currentQueueLead ? (
-          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#333", textAlign: "center", padding: 40 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 13, color: "#9AA0AC", textAlign: "center", padding: 40 }}>
             File d'appel vide. {skippedIds.size > 0 ? "Tout a été traité ou passé pour l'instant." : "Aucun lead à appeler."}
           </div>
         ) : (
-          <div style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `4px solid ${scoreColor(currentQueueLead.score)}`, borderRadius: 8, padding: 24, maxWidth: 480, margin: "0 auto" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderLeft: `4px solid ${scoreColor(currentQueueLead.score)}`, borderRadius: 8, padding: 24, maxWidth: 480, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ background: scoreColor(currentQueueLead.score), color: "#fff", fontFamily: "monospace", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 3 }}>
                 SCORE {currentQueueLead.score}
               </div>
-              <div style={{ fontFamily: "monospace", fontSize: 10, color: STAGE_COLOR[currentQueueLead.status] || "#555" }}>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: STAGE_COLOR[currentQueueLead.status] || "#6B7280" }}>
                 {STAGE_LABEL[currentQueueLead.status] || currentQueueLead.status}
               </div>
             </div>
 
             <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>{currentQueueLead.name}</div>
-            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", marginBottom: 12 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6B7280", marginBottom: 12 }}>
               {currentQueueLead.category?.toUpperCase()} · {currentQueueLead.city}{currentQueueLead.governorate ? ` (${currentQueueLead.governorate})` : ""}
             </div>
             {currentQueueLead.address && <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{currentQueueLead.address}</div>}
 
             {currentQueueLead.phone ? (
               <button onClick={() => qCall(currentQueueLead)} style={{
-                width: "100%", background: "#ff4d00", color: "#fff", border: "none", borderRadius: 6,
+                width: "100%", background: "#121830", color: "#fff", border: "none", borderRadius: 6,
                 padding: "16px", fontSize: 16, fontWeight: 800, marginBottom: 16, cursor: "pointer",
               }}>
                 {isNativeOrMobile ? `📞 Appeler ${currentQueueLead.phone}` : `📋 Copier ${currentQueueLead.phone}`}
               </button>
             ) : (
-              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#666", marginBottom: 16 }}>Pas de numéro de téléphone</div>
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6B7280", marginBottom: 16 }}>Pas de numéro de téléphone</div>
             )}
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -256,15 +256,15 @@ export default function AgentPage({ user }) {
               <ActionBtn danger onClick={() => qDecline(currentQueueLead)}>Pas intéressé</ActionBtn>
             </div>
 
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#333", marginTop: 16, textAlign: "center" }}>
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#9AA0AC", marginTop: 16, textAlign: "center" }}>
               {queueList.length} restant{queueList.length > 1 ? "s" : ""} dans la file
             </div>
           </div>
         )
       ) : loading ? (
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
+        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#6B7280", textAlign: "center", padding: 40 }}>Loading...</div>
       ) : leads.length === 0 ? (
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#333", textAlign: "center", padding: 40 }}>
+        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#9AA0AC", textAlign: "center", padding: 40 }}>
           No leads assigned yet. Ask back office to assign you leads from the CRM page.
         </div>
       ) : (
@@ -272,20 +272,20 @@ export default function AgentPage({ user }) {
           {leads.map((lead) => {
             const busy = busyLeadId === lead.id;
             return (
-              <div key={lead.id} style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", opacity: busy ? 0.6 : 1 }}>
+              <div key={lead.id} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", opacity: busy ? 0.6 : 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                   <div onClick={() => setSelected(lead)} style={{ cursor: "pointer" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", marginBottom: 3 }}>{lead.name}</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555" }}>{lead.category?.toUpperCase()} · {lead.city}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#121830", marginBottom: 3 }}>{lead.name}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280" }}>{lead.category?.toUpperCase()} · {lead.city}</div>
                     {lead.phone && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#4a9eff", marginTop: 4 }}>📞 {lead.phone}</div>}
-                    {lead.appointment_date && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#ff4d00", marginTop: 2 }}>📅 {new Date(lead.appointment_date).toLocaleString()}</div>}
+                    {lead.appointment_date && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#121830", marginTop: 2 }}>📅 {new Date(lead.appointment_date).toLocaleString()}</div>}
                     {lead.deal_value && <div style={{ fontFamily: "monospace", fontSize: 11, color: "#22c55e", marginTop: 2 }}>💰 {lead.deal_value} TND</div>}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                     <div style={{ background: scoreColor(lead.score), color: "#fff", fontFamily: "monospace", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 3 }}>
                       {lead.score}
                     </div>
-                    <div style={{ fontFamily: "monospace", fontSize: 9, color: STAGE_COLOR[lead.status] || "#555" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 9, color: STAGE_COLOR[lead.status] || "#6B7280" }}>
                       {STAGE_LABEL[lead.status] || lead.status}
                     </div>
                   </div>
@@ -317,7 +317,7 @@ export default function AgentPage({ user }) {
                     </>
                   )}
                   {(lead.status === "DEAL_CLOSED" || lead.status === "NOT_INTERESTED") && (
-                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280" }}>
                       {lead.status === "DEAL_CLOSED" ? "✓ Closed" : `✕ ${lead.decline_reason || "Declined"}`}
                     </div>
                   )}
@@ -337,7 +337,7 @@ export default function AgentPage({ user }) {
             placeholder="Deal value (TND)"
             value={dealModal.value}
             onChange={(e) => setDealModal({ ...dealModal, value: e.target.value })}
-            style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
+            style={{ width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 4, color: "#121830", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
             autoFocus
           />
           <ActionBtn onClick={confirmDeal} disabled={!dealModal.value}>Confirm</ActionBtn>
@@ -351,7 +351,7 @@ export default function AgentPage({ user }) {
             placeholder="Reason (e.g. not interested, budget, timing)"
             value={declineModal.reason}
             onChange={(e) => setDeclineModal({ ...declineModal, reason: e.target.value })}
-            style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
+            style={{ width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 4, color: "#121830", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
             autoFocus
           />
           <ActionBtn danger onClick={confirmDecline}>Confirm</ActionBtn>
@@ -364,7 +364,7 @@ export default function AgentPage({ user }) {
             type="datetime-local"
             value={callbackModal.when}
             onChange={(e) => setCallbackModal({ ...callbackModal, when: e.target.value })}
-            style={{ width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 4, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
+            style={{ width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 4, color: "#121830", padding: "8px 12px", fontSize: 13, marginBottom: 12 }}
             autoFocus
           />
           <ActionBtn onClick={confirmCallback} disabled={!callbackModal.when}>Confirm</ActionBtn>
@@ -377,9 +377,9 @@ export default function AgentPage({ user }) {
 function ActionBtn({ children, onClick, disabled, danger, highlight }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      background: highlight ? "#ff4d00" : "transparent",
-      border: `1px solid ${danger ? "#ef444466" : highlight ? "#ff4d00" : "#3a3a3a"}`,
-      color: highlight ? "#fff" : danger ? "#ef4444" : "#ccc",
+      background: highlight ? "#121830" : "transparent",
+      border: `1px solid ${danger ? "#ef444466" : highlight ? "#121830" : "#D7DAE1"}`,
+      color: highlight ? "#fff" : danger ? "#ef4444" : "#6B7280",
       borderRadius: 3, padding: "5px 12px", fontFamily: "monospace", fontSize: 10,
       cursor: disabled ? "default" : "pointer", letterSpacing: 1,
     }}>{children}</button>
@@ -389,7 +389,7 @@ function ActionBtn({ children, onClick, disabled, danger, highlight }) {
 function Modal({ children, onClose, title }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#1c1c1c", border: "1px solid #333", borderRadius: 8, padding: 20, width: "100%", maxWidth: 360 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", border: "1px solid #9AA0AC", borderRadius: 8, padding: 20, width: "100%", maxWidth: 360 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>{title}</div>
         {children}
       </div>

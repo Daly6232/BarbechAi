@@ -4,11 +4,11 @@ import BusinessPopup from "../components/BusinessPopup";
 
 import { API } from "../config";
 
-const scoreColor = (s) => s >= 71 ? "#ff4d00" : s >= 41 ? "#f5a623" : "#4a9eff";
+const scoreColor = (s) => s >= 71 ? "#121830" : s >= 41 ? "#f5a623" : "#4a9eff";
 const scoreLabel = (s) => s >= 71 ? "HIGH" : s >= 41 ? "MEDIUM" : "LOW";
 
-const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
-const selectStyle = { width: "100%", background: "#161616", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const labelStyle = { fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 };
+const selectStyle = { width: "100%", background: "#F5F6F8", border: "1px solid #D7DAE1", borderRadius: 5, color: "#121830", padding: "8px 12px", fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer" };
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
@@ -131,27 +131,27 @@ export default function LeadsPage() {
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ff4d00", letterSpacing: 3, marginBottom: 8 }}>LEAD MANAGEMENT</div>
+        <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>LEAD MANAGEMENT</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <h1 style={{ fontSize: 26, fontWeight: 800 }}>Leads Pipeline</h1>
-          <button onClick={fetchLeads} style={{ background: "#333333", border: "1px solid #3a3a3a", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+          <button onClick={fetchLeads} style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
         </div>
       </div>
 
       {/* Enrich pending banner */}
       {pendingCount > 0 && (
-        <div style={{ background: "#1a0a0a", border: "1px solid #ff4d0033", borderRadius: 6, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#ff4d00" }}>
+        <div style={{ background: "#FBF3E7", border: "1px solid #C4A26455", borderRadius: 6, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 12, color: "#8A6D2F" }}>
             {enriching
               ? `⟳ ENRICHING ${enrichProgress.done}/${enrichProgress.total}...`
               : `${pendingCount} leads not yet enriched`}
           </div>
           {enriching ? (
-            <button onClick={() => { stopFlag.current = true; }} style={{ background: "transparent", border: "1px solid #ff4d0066", color: "#ff4d00", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>
+            <button onClick={() => { stopFlag.current = true; }} style={{ background: "transparent", border: "1px solid #12183066", color: "#121830", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>
               STOP
             </button>
           ) : (
-            <button onClick={enrichAllPending} style={{ background: "#ff4d00", border: "none", color: "#fff", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            <button onClick={enrichAllPending} style={{ background: "#121830", border: "none", color: "#fff", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
               ⚡ ENRICH PENDING
             </button>
           )}
@@ -160,10 +160,10 @@ export default function LeadsPage() {
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {[["TOTAL", leads.length, "#555"], ["HIGH", stats.high, "#ff4d00"], ["MED", stats.medium, "#f5a623"], ["LOW", stats.low, "#4a9eff"], ["ENRICHED", stats.enriched, "#22c55e"]].map(([l, v, c]) => (
-          <div key={l} style={{ background: "#1c1c1c", border: "1px solid #333333", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
+        {[["TOTAL", leads.length, "#6B7280"], ["HIGH", stats.high, "#121830"], ["MED", stats.medium, "#f5a623"], ["LOW", stats.low, "#4a9eff"], ["ENRICHED", stats.enriched, "#22c55e"]].map(([l, v, c]) => (
+          <div key={l} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
             <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: c }}>{v}</div>
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: 2 }}>{l}</div>
+            <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2 }}>{l}</div>
           </div>
         ))}
       </div>
@@ -174,7 +174,7 @@ export default function LeadsPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name or city..."
-          style={{ width: "100%", background: "#1c1c1c", border: "1px solid #3a3a3a", borderRadius: 5, color: "#f0f0f0", padding: "10px 14px", fontSize: 13, fontFamily: "Inter, sans-serif" }}
+          style={{ width: "100%", background: "#FFFFFF", border: "1px solid #D7DAE1", borderRadius: 5, color: "#121830", padding: "10px 14px", fontSize: 13, fontFamily: "Inter, sans-serif" }}
         />
       </div>
 
@@ -216,11 +216,11 @@ export default function LeadsPage() {
 
       {/* Filter info + reset */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 11, color: "#444" }}>
+        <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6B7280" }}>
           {filtered.length} / {leads.length} leads
         </div>
         {(search || filterStatus !== "ALL" || filterCity !== "ALL" || filterCategory !== "ALL" || filterOpportunity !== "ALL") && (
-          <button onClick={resetFilters} style={{ background: "transparent", border: "1px solid #333", color: "#888", borderRadius: 4, padding: "4px 10px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+          <button onClick={resetFilters} style={{ background: "transparent", border: "1px solid #9AA0AC", color: "#888", borderRadius: 4, padding: "4px 10px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
             ✕ RESET
           </button>
         )}
@@ -228,26 +228,26 @@ export default function LeadsPage() {
 
       {/* List */}
       {loading ? (
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#444", textAlign: "center", padding: 40 }}>Loading...</div>
+        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#6B7280", textAlign: "center", padding: 40 }}>Loading...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#333", textAlign: "center", padding: 40 }}>No leads found.</div>
+        <div style={{ fontFamily: "monospace", fontSize: 13, color: "#9AA0AC", textAlign: "center", padding: 40 }}>No leads found.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((lead, i) => (
             <div key={lead.id || i} onClick={() => setSelected(lead)}
-              style={{ background: "#1c1c1c", border: "1px solid #333333", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderLeft: `3px solid ${scoreColor(lead.score)}`, borderRadius: 6, padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", marginBottom: 2 }}>{lead.name}</div>
-                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#555", letterSpacing: 1, marginBottom: 3 }}>{lead.category?.toUpperCase()} · {lead.city}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#121830", marginBottom: 2 }}>{lead.name}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", letterSpacing: 1, marginBottom: 3 }}>{lead.category?.toUpperCase()} · {lead.city}</div>
                 {lead.phone && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#4a9eff", marginBottom: 2 }}>📞 {lead.phone}</div>}
-                {lead.address && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#444", marginBottom: 2 }}>📍 {lead.address}</div>}
+                {lead.address && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", marginBottom: 2 }}>📍 {lead.address}</div>}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                   {lead.website && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#4a9eff", border: "1px solid #4a9eff33", padding: "2px 6px", borderRadius: 3 }}>🌐 WEB</span>}
                   {lead.facebook && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#1877f2", border: "1px solid #1877f233", padding: "2px 6px", borderRadius: 3 }}>📘 FB</span>}
                   {lead.instagram && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#e1306c", border: "1px solid #e1306c33", padding: "2px 6px", borderRadius: 3 }}>📸 IG</span>}
                   {lead.in_crm === "true" && <span style={{ fontFamily: "monospace", fontSize: 9, color: "#22c55e", border: "1px solid #22c55e33", padding: "2px 6px", borderRadius: 3 }}>✓ CRM</span>}
                 </div>
-                <div style={{ fontFamily: "monospace", fontSize: 9, marginTop: 6, color: lead.status === "ENRICHED" ? "#22c55e" : lead.status === "ENRICHING" ? "#f5a623" : lead.status === "ENRICHED_PARTIAL" ? "#4a9eff" : lead.status === "ENRICHMENT_FAILED" ? "#ff4d4d" : "#555" }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, marginTop: 6, color: lead.status === "ENRICHED" ? "#22c55e" : lead.status === "ENRICHING" ? "#f5a623" : lead.status === "ENRICHED_PARTIAL" ? "#4a9eff" : lead.status === "ENRICHMENT_FAILED" ? "#ef4444" : "#6B7280" }}>
                   {lead.status} {lead.created_at ? `· ${new Date(lead.created_at).toLocaleDateString("fr-TN")}` : ""}
                 </div>
               </div>
