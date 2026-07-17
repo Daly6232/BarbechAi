@@ -8,6 +8,7 @@ from app.services.agent_activity import (
     get_my_leads,
     update_agent_lead,
     get_agent_stats,
+    get_agent_activity_log,
 )
 from app.data.tunisia_locations import LOCATIONS
 
@@ -87,3 +88,14 @@ def stats_for_agent(agent_id: str, authorization: str = Header(None)):
     if error:
         return error
     return get_agent_stats(agent_id)
+
+
+@router.get("/agent/{agent_id}/timeline")
+def agent_timeline(agent_id: str, authorization: str = Header(None)):
+    """Full contact history for one agent — every call/note/status change
+    they've logged, across all their leads. This is the supervision view a
+    manager needs to actually see who's working and who isn't."""
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    return get_agent_activity_log(agent_id)

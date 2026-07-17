@@ -206,6 +206,42 @@ def update_agent_lead(user_id: str, lead_id: str, updates: dict, requester_role:
         db.close()
 
 
+def get_agent_activity_log(agent_id: str, limit: int = 100):
+    """Full recent activity timeline for one agent, across every lead they've
+    touched — this is the supervision view: who called whom and when, not
+    scoped to a single lead like get_lead_activity is."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(AgentActivity, Lead, Business)
+            .join(Lead, AgentActivity.lead_id == Lead.id)
+            .outerjoin(Business, Lead.business_id == Business.id)
+            .filter(AgentActivity.user_id == agent_id)
+            .order_by(AgentActivity.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        return {
+            "count": len(rows),
+            "activity": [
+                {
+                    "id": activity.id,
+                    "action": activity.action,
+                    "notes": activity.notes or "",
+                    "timestamp": activity.timestamp.isoformat() if activity.timestamp else None,
+                    "lead_id": lead.id,
+                    "lead_name": business.name if business else "",
+                }
+                for activity, lead, business in rows
+            ],
+        }
+    except Exception as exc:
+        logger.exception(exc)
+        return {"count": 0, "activity": [], "error": str(exc)}
+    finally:
+        db.close()
+
+
 def get_agent_stats(user_id: str):
     db = SessionLocal()
     try:

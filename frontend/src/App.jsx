@@ -4,6 +4,7 @@ import SearchPage from "./pages/SearchPage";
 import LeadsPage from "./pages/LeadsPage";
 import CRMPage from "./pages/CRMPage";
 import AgentPage from "./pages/AgentPage";
+import TeamPage from "./pages/TeamPage";
 import ExportPage from "./pages/ExportPage";
 import UsersPage from "./pages/UsersPage";
 import { setAuthExpiredHandler } from "./api";
@@ -111,7 +112,7 @@ export default function App() {
               borderRadius: 4, padding: "6px 12px",
               fontFamily: "monospace", fontSize: 11,
               cursor: "pointer", letterSpacing: 1,
-            }}>{p.toUpperCase()}</button>
+            }}>{(p === "Agent" && user.role !== "field_agent" ? "Team" : p).toUpperCase()}</button>
           ))}
 
           <div style={{ width: 1, height: 20, background: theme.border, margin: "0 6px" }} />
@@ -135,7 +136,9 @@ export default function App() {
       {page === "Search" && visiblePages.includes("Search") && <SearchPage />}
       {page === "Leads" && visiblePages.includes("Leads") && <LeadsPage />}
       {page === "CRM" && visiblePages.includes("CRM") && <CRMPage />}
-      {page === "Agent" && visiblePages.includes("Agent") && <AgentPage user={user} />}
+      {page === "Agent" && visiblePages.includes("Agent") && (
+        user.role === "field_agent" ? <AgentPage user={user} /> : <TeamPage />
+      )}
       {page === "Export" && visiblePages.includes("Export") && <ExportPage />}
       {page === "Users" && visiblePages.includes("Users") && <UsersPage user={user} />}
     </div>
