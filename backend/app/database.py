@@ -233,6 +233,17 @@ def init_db():
                     logger.info("Startup Migration Success (sqlite): added service_opportunities")
                 except Exception as e:
                     logger.warning("Startup Migration Failed (sqlite): %s", str(e))
+
+            agent_activity_cols = {
+                row[1] for row in conn.execute(text("PRAGMA table_info(agent_activity)")).fetchall()
+            }
+            if agent_activity_cols and "user_id" not in agent_activity_cols:
+                try:
+                    conn.execute(text("ALTER TABLE agent_activity ADD COLUMN user_id TEXT"))
+                    logger.info("Startup Migration Success (sqlite): added agent_activity.user_id")
+                except Exception as e:
+                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
+
             # SQLite creates indexes via CREATE INDEX IF NOT EXISTS fine, no dialect issue there.
             migrations = [
                 "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
@@ -242,6 +253,7 @@ def init_db():
         else:
             migrations = [
                 "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
+                "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
                 "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
                 "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
                 "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
