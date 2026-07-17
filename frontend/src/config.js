@@ -9,8 +9,8 @@ const isLocalhost = !isNativeApp && typeof window !== "undefined" &&
 
 export const API = isLocalhost
   ? "http://localhost:8000"
-  : "https://barbechai-backend.onrender.com";
+  : "https://barbechai.onrender.com";
 
 export const WS_BASE = isLocalhost
   ? "ws://localhost:8000"
-  : "wss://barbechai-backend.onrender.com";
+  : "wss://barbechai.onrender.com";
