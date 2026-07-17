@@ -222,8 +222,8 @@ def init_db():
     # service_opportunities would then crash with "no such column".
     is_sqlite = engine.dialect.name == "sqlite"
 
-    with engine.begin() as conn:
-        if is_sqlite:
+    if is_sqlite:
+        with engine.begin() as conn:
             existing_cols = {
                 row[1] for row in conn.execute(text("PRAGMA table_info(leads)")).fetchall()
             }
@@ -250,20 +250,25 @@ def init_db():
                 "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
                 "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
             ]
-        else:
-            migrations = [
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
-                "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
-                "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
-                "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
-                "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
-            ]
+    else:
+        migrations = [
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
+            "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
+            "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
+            "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
+            "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+        ]
 
-        for cmd in migrations:
-            try:
+    # Each statement gets its OWN connection/transaction. Previously these all
+    # shared one transaction — the first timeout (e.g. a slow cross-region link
+    # to the DB) left Postgres in "aborted transaction" state, so every single
+    # statement after it failed too, even harmless ones like CREATE INDEX.
+    for cmd in migrations:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text(cmd))
-                logger.info("Startup Migration Success: %s", cmd)
-            except Exception as e:
-                logger.warning("Startup Migration Skipped/Failed: %s - Error: %s", cmd, str(e))
+            logger.info("Startup Migration Success: %s", cmd)
+        except Exception as e:
+            logger.warning("Startup Migration Skipped/Failed: %s - Error: %s", cmd, str(e))
 
     logger.info("Database initialization and migration check completed successfully.")
