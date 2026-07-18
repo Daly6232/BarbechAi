@@ -21,11 +21,16 @@ function actionLabel(action) {
   return ACTION_LABELS[action] || action;
 }
 
-export default function LeadActivityModal({ lead, onClose, onNoteAdded }) {
+export default function LeadActivityModal({ lead, user, onClose, onNoteAdded, onAnonymized }) {
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const canErase = user?.role === "admin" || user?.role === "master_admin";
 
   const fetchActivity = async () => {
     setLoading(true);
@@ -57,6 +62,34 @@ export default function LeadActivityModal({ lead, onClose, onNoteAdded }) {
     }
   };
 
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const res = await apiFetch(`${API}/crm/lead/${encodeURIComponent(lead.id)}/export`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lead-${lead.id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {} finally {
+      setExporting(false);
+    }
+  };
+
+  const eraseData = async () => {
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`${API}/crm/lead/${encodeURIComponent(lead.id)}/anonymize`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) onAnonymized?.();
+    } catch {} finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
       <div
@@ -79,6 +112,34 @@ export default function LeadActivityModal({ lead, onClose, onNoteAdded }) {
         <div style={{ fontFamily: "monospace", fontSize: 11, color: "#C4A264", marginTop: 6 }}>
           👤 {lead.assigned_agent_name || "Non assigné"}
         </div>
+
+        {/* GDPR actions */}
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <button onClick={exportData} disabled={exporting} style={{ background: "transparent", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 12px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+            {exporting ? "Export..." : "⬇ Exporter (RGPD)"}
+          </button>
+          {canErase && !confirmingDelete && (
+            <button onClick={() => setConfirmingDelete(true)} style={{ background: "transparent", border: "1px solid #ef444455", color: "#ef4444", borderRadius: 5, padding: "6px 12px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+              🗑 Supprimer les données
+            </button>
+          )}
+        </div>
+
+        {confirmingDelete && (
+          <div style={{ marginTop: 10, background: "#FDEDED", border: "1px solid #ef444444", borderRadius: 6, padding: 12 }}>
+            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 8 }}>
+              Ceci efface définitivement le nom, téléphone, email et notes de ce lead. Irréversible. Confirmer ?
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={eraseData} disabled={deleting} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 4, padding: "7px 14px", fontFamily: "monospace", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                {deleting ? "..." : "OUI, SUPPRIMER"}
+              </button>
+              <button onClick={() => setConfirmingDelete(false)} style={{ background: "transparent", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 4, padding: "7px 14px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+                ANNULER
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Add note */}
         <div style={{ marginTop: 18 }}>

@@ -74,6 +74,12 @@ class Business(Base):
     lng = Column(Float)
     source = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # GDPR legal basis for holding this contact data. Public B2B business
+    # contact info discovered via the scraping pipeline generally sits on
+    # "legitimate interest" (Art. 6(1)(f)) rather than requiring opt-in
+    # consent — this field exists so that changes (e.g. individually
+    # consented contacts) can be tracked per-record instead of assumed.
+    data_basis = Column(String, default="legitimate_interest_b2b")
 
     enrichments = relationship(
         "Enrichment",
@@ -271,6 +277,16 @@ def init_db():
                 except Exception as e:
                     logger.warning("Startup Migration Failed (sqlite): %s", str(e))
 
+            businesses_cols = {
+                row[1] for row in conn.execute(text("PRAGMA table_info(businesses)")).fetchall()
+            }
+            if businesses_cols and "data_basis" not in businesses_cols:
+                try:
+                    conn.execute(text("ALTER TABLE businesses ADD COLUMN data_basis TEXT DEFAULT 'legitimate_interest_b2b'"))
+                    logger.info("Startup Migration Success (sqlite): added businesses.data_basis")
+                except Exception as e:
+                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
+
             users_cols = {
                 row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
             }
@@ -302,6 +318,7 @@ def init_db():
         migrations = [
             "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
             "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
+            "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS data_basis TEXT DEFAULT 'legitimate_interest_b2b';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;",

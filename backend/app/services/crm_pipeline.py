@@ -41,7 +41,125 @@ def _build_lead_dict(lead, business, enrichment):
     }
 
 
-def get_pipeline():
+def export_lead_data(lead_id: str):
+    """Full record for one lead — data portability. Includes everything
+    held about this business/contact: profile, enrichment, pipeline status,
+    and the complete activity/contact history."""
+    db = SessionLocal()
+    try:
+        from app.database import AgentActivity, User
+
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return {"error": "Lead not found"}
+        business = db.query(Business).filter(Business.id == lead.business_id).first()
+        enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
+        activity_rows = (
+            db.query(AgentActivity, User)
+            .outerjoin(User, AgentActivity.user_id == User.id)
+            .filter(AgentActivity.lead_id == lead_id)
+            .order_by(AgentActivity.timestamp.asc())
+            .all()
+        )
+
+        return {
+            "export_generated_at": datetime.utcnow().isoformat(),
+            "lead": _build_lead_dict(lead, business, enrichment),
+            "legal_basis": getattr(business, "data_basis", None) or "legitimate_interest_b2b",
+            "pipeline_stage_history": {
+                "current_status": lead.status,
+                "current_crm_status": lead.crm_status,
+                "confirmed_by": lead.confirmed_by,
+                "confirmed_at": lead.confirmed_at.isoformat() if lead.confirmed_at else None,
+            },
+            "activity_history": [
+                {
+                    "action": a.action,
+                    "notes": a.notes or "",
+                    "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                    "by": u.name if u else "Unknown",
+                }
+                for a, u in activity_rows
+            ],
+        }
+    except Exception as exc:
+        logger.exception(exc)
+        return {"error": str(exc)}
+    finally:
+        db.close()
+
+
+def anonymize_lead(lead_id: str, requester: dict = None):
+    """Right-to-erasure for a single lead: scrubs personally-identifying
+    contact fields (name, phone, email, socials, address, notes) while
+    leaving the pipeline-stage/score/audit skeleton intact, so aggregate
+    pipeline stats and past audit entries don't silently corrupt."""
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return {"error": "Lead not found"}
+        business = db.query(Business).filter(Business.id == lead.business_id).first()
+        enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
+
+        if business:
+            business.name = "[SUPPRIMÉ]"
+            business.address = None
+        if enrichment:
+            enrichment.phone = None
+            enrichment.email = None
+            enrichment.website = None
+            enrichment.facebook = None
+            enrichment.instagram = None
+            enrichment.address = None
+        lead.crm_notes = "[Données personnelles supprimées]"
+        lead.client_requests = None
+        db.commit()
+
+        from app.services.audit import log_audit_event
+        log_audit_event("LEAD_ANONYMIZED", actor=requester, target_type="lead", target_id=lead_id)
+        return {"success": True, "lead_id": lead_id}
+    except Exception as exc:
+        db.rollback()
+        logger.exception(exc)
+        return {"error": str(exc)}
+    finally:
+        db.close()
+
+
+def retention_review(days: int):
+    """Leads sitting in LOST status older than the retention window, not
+    yet anonymized — surfaced for a human to review/act on, never
+    auto-deleted silently."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    db = SessionLocal()
+    try:
+        candidates = (
+            db.query(Lead)
+            .filter(Lead.crm_status == "LOST")
+            .filter(Lead.created_at < cutoff)
+            .filter(Lead.crm_notes != "[Données personnelles supprimées]")
+            .all()
+        )
+        results = []
+        for lead in candidates:
+            business = db.query(Business).filter(Business.id == lead.business_id).first()
+            results.append({
+                "lead_id": lead.id,
+                "name": business.name if business else "",
+                "created_at": lead.created_at.isoformat() if lead.created_at else None,
+            })
+        return {"count": len(results), "candidates": results, "retention_days": days}
+    finally:
+        db.close()
+
+
+def retention_purge(lead_ids: list, requester: dict = None):
+    """Bulk-anonymize a reviewed list of retention candidates."""
+    results = [anonymize_lead(lid, requester=requester) for lid in lead_ids]
+    succeeded = sum(1 for r in results if r.get("success"))
+    return {"success": True, "anonymized": succeeded, "requested": len(lead_ids)}
     """Returns all auto-discovered leads (Leads page)."""
     db = SessionLocal()
     try:

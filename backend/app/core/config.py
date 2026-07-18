@@ -53,5 +53,11 @@ class Settings:
     # in this deployment, so this runs whenever Render restarts the service).
     AUDIT_LOG_RETENTION_DAYS = int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "400"))
 
+    # Data retention policy for lost/dead leads (GDPR-style). This is a
+    # documented policy surfaced to admins for manual review — leads are
+    # never auto-deleted without a human confirming, since that's real
+    # business data. Default: 2 years after a lead is marked LOST.
+    LOST_LEAD_RETENTION_DAYS = int(os.getenv("LOST_LEAD_RETENTION_DAYS", "730"))
+
 
 settings = Settings()

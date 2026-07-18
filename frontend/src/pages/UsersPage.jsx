@@ -40,6 +40,41 @@ export default function UsersPage({ user }) {
   const [auditHasMore, setAuditHasMore] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
 
+  // GDPR retention review
+  const [retentionCandidates, setRetentionCandidates] = useState(null); // null = not loaded yet
+  const [retentionDays, setRetentionDays] = useState(730);
+  const [showRetention, setShowRetention] = useState(false);
+  const [purging, setPurging] = useState(false);
+
+  const loadRetention = async () => {
+    try {
+      const res = await apiFetch(`${API}/crm/retention-review`);
+      const data = await res.json();
+      setRetentionCandidates(data.candidates || []);
+      setRetentionDays(data.retention_days || 730);
+    } catch {
+      setRetentionCandidates([]);
+    }
+  };
+
+  const toggleRetention = () => {
+    const next = !showRetention;
+    setShowRetention(next);
+    if (next && retentionCandidates === null) loadRetention();
+  };
+
+  const purgeRetention = async () => {
+    if (!retentionCandidates || retentionCandidates.length === 0) return;
+    setPurging(true);
+    try {
+      const ids = retentionCandidates.map(c => c.lead_id).join(",");
+      await apiFetch(`${API}/crm/retention-purge?lead_ids=${encodeURIComponent(ids)}`, { method: "POST" });
+      setRetentionCandidates([]);
+    } catch {} finally {
+      setPurging(false);
+    }
+  };
+
   const loadAudit = async (reset = false) => {
     setAuditLoading(true);
     const offset = reset ? 0 : auditOffset;
@@ -397,6 +432,47 @@ export default function UsersPage({ user }) {
           ))}
         </div>
       )}
+
+      {/* GDPR retention review */}
+      <div style={{ marginTop: 36 }}>
+        <button onClick={toggleRetention} style={{
+          width: "100%", background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 6,
+          padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+          cursor: "pointer", textAlign: "left",
+        }}>
+          <div>
+            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 4 }}>RGPD</div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>Nettoyage des données ({retentionDays} jours)</div>
+          </div>
+          <div style={{ color: "#9AA0AC" }}>{showRetention ? "▾" : "▸"}</div>
+        </button>
+
+        {showRetention && (
+          <div style={{ marginTop: 10 }}>
+            {retentionCandidates === null ? (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#9AA0AC", padding: "12px 0" }}>Chargement...</div>
+            ) : retentionCandidates.length === 0 ? (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#9AA0AC", padding: "12px 0" }}>Aucun lead perdu au-delà de la période de rétention.</div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: "#374151", marginBottom: 10 }}>
+                  {retentionCandidates.length} lead(s) marqué(s) "Perdu" depuis plus de {retentionDays} jours. Anonymiser supprime nom/téléphone/email/notes définitivement, sans affecter les statistiques du pipeline.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, maxHeight: 200, overflowY: "auto" }}>
+                  {retentionCandidates.map(c => (
+                    <div key={c.lead_id} style={{ fontFamily: "monospace", fontSize: 10, color: "#6B7280", background: "#F5F6F8", borderRadius: 3, padding: "6px 10px" }}>
+                      {c.name} · {c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={purgeRetention} disabled={purging} style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 4, padding: "9px 16px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {purging ? "..." : `ANONYMISER LES ${retentionCandidates.length} LEADS →`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Audit trail */}
       <div style={{ marginTop: 36 }}>

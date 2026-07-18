@@ -153,7 +153,7 @@ export default function App() {
       {/* Pages */}
       {page === "Search" && visiblePages.includes("Search") && <SearchPage />}
       {page === "Leads" && visiblePages.includes("Leads") && <LeadsPage />}
-      {page === "CRM" && visiblePages.includes("CRM") && <CRMPage />}
+      {page === "CRM" && visiblePages.includes("CRM") && <CRMPage user={user} />}
       {page === "Agent" && visiblePages.includes("Agent") && (
         user.role === "field_agent" ? <AgentPage user={user} /> : <TeamPage />
       )}

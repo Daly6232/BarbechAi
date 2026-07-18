@@ -15,7 +15,7 @@ const CRM_STAGES = [
 
 const scoreColor = (score) => score >= 71 ? "#121830" : score >= 41 ? "#f5a623" : "#4a9eff";
 
-export default function CRMPage() {
+export default function CRMPage({ user }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -187,8 +187,10 @@ export default function CRMPage() {
       {selected && (
         <LeadActivityModal
           lead={selected}
+          user={user}
           onClose={() => setSelected(null)}
           onNoteAdded={fetchCRMLeads}
+          onAnonymized={() => { setSelected(null); fetchCRMLeads(); }}
         />
       )}
     </div>

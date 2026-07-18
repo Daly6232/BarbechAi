@@ -8,7 +8,12 @@ from app.services.crm_pipeline import (
     update_status,
     add_note,
     assign_lead,
+    export_lead_data,
+    anonymize_lead,
+    retention_review,
+    retention_purge,
 )
+from app.core.config import settings
 from app.services.agent_activity import get_lead_activity
 
 router = APIRouter()
@@ -87,3 +92,44 @@ def note(lead_id: str, note: str, authorization: str = Header(None)):
     if error:
         return error
     return add_note(lead_id, note)
+
+
+# --- Data privacy (GDPR-style) ---
+
+@router.get("/crm/lead/{lead_id}/export")
+def lead_export(lead_id: str, authorization: str = Header(None)):
+    """Full record for one lead — data portability."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
+    return export_lead_data(lead_id)
+
+
+@router.post("/crm/lead/{lead_id}/anonymize")
+def lead_anonymize(lead_id: str, authorization: str = Header(None)):
+    """Right-to-erasure for one lead. Admin/master_admin only — this is
+    irreversible."""
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    return anonymize_lead(lead_id, requester=user)
+
+
+@router.get("/crm/retention-review")
+def get_retention_review(authorization: str = Header(None)):
+    """Lost leads past the retention window, awaiting a human decision."""
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    return retention_review(settings.LOST_LEAD_RETENTION_DAYS)
+
+
+@router.post("/crm/retention-purge")
+def post_retention_purge(lead_ids: str, authorization: str = Header(None)):
+    """Bulk-anonymize a reviewed list of retention candidates.
+    lead_ids is a comma-separated string of lead ids (query param)."""
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    ids = [i.strip() for i in lead_ids.split(",") if i.strip()]
+    return retention_purge(ids, requester=user)
