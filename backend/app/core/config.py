@@ -48,5 +48,10 @@ class Settings:
     # User-Agent
     USER_AGENT = "BarbechAI/1.0"
 
+    # Audit log retention — SOC 2-style expectation is 1+ year. Pruned on
+    # each backend startup (best-effort; there's no standalone cron worker
+    # in this deployment, so this runs whenever Render restarts the service).
+    AUDIT_LOG_RETENTION_DAYS = int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "400"))
+
 
 settings = Settings()

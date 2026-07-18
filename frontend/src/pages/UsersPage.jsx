@@ -33,6 +33,36 @@ export default function UsersPage({ user }) {
   const [mfaMsg, setMfaMsg] = useState(null);
   const [mfaEnabled, setMfaEnabled] = useState(false);
 
+  // Audit log
+  const [auditEntries, setAuditEntries] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditOffset, setAuditOffset] = useState(0);
+  const [auditHasMore, setAuditHasMore] = useState(true);
+  const [showAudit, setShowAudit] = useState(false);
+
+  const loadAudit = async (reset = false) => {
+    setAuditLoading(true);
+    const offset = reset ? 0 : auditOffset;
+    try {
+      const res = await apiFetch(`${API}/auth/audit-log?limit=50&offset=${offset}`);
+      const data = await res.json();
+      const entries = data.entries || [];
+      setAuditEntries(prev => reset ? entries : [...prev, ...entries]);
+      setAuditOffset(offset + entries.length);
+      setAuditHasMore(entries.length === 50);
+    } catch {
+      if (reset) setAuditEntries([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const toggleAudit = () => {
+    const next = !showAudit;
+    setShowAudit(next);
+    if (next && auditEntries.length === 0) loadAudit(true);
+  };
+
   const isMasterAdmin = user?.role === "master_admin";
   const isMfaEligible = user?.role === "admin" || user?.role === "master_admin";
   const availableRoles = isMasterAdmin ? ROLE_OPTIONS : ROLE_OPTIONS.filter(r => r.value !== "admin");
@@ -367,9 +397,84 @@ export default function UsersPage({ user }) {
           ))}
         </div>
       )}
+
+      {/* Audit trail */}
+      <div style={{ marginTop: 36 }}>
+        <button onClick={toggleAudit} style={{
+          width: "100%", background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 6,
+          padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+          cursor: "pointer", textAlign: "left",
+        }}>
+          <div>
+            <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 4 }}>ACCOUNTABILITÉ</div>
+            <div style={{ fontSize: 15, fontWeight: 800 }}>Journal d'audit</div>
+          </div>
+          <div style={{ color: "#9AA0AC" }}>{showAudit ? "▾" : "▸"}</div>
+        </button>
+
+        {showAudit && (
+          <div style={{ marginTop: 10 }}>
+            {auditEntries.length === 0 && !auditLoading ? (
+              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#9AA0AC", padding: "12px 0" }}>Aucune activité enregistrée.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {auditEntries.map(e => (
+                  <div key={e.id} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderLeft: `3px solid ${auditColor(e.action)}`, borderRadius: 4, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#121830" }}>{auditLabel(e.action)}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", marginTop: 2 }}>
+                      {e.actor_name} · {e.timestamp ? new Date(e.timestamp).toLocaleString() : ""}{e.ip ? ` · ${e.ip}` : ""}
+                    </div>
+                    {e.details && <div style={{ fontFamily: "monospace", fontSize: 10, color: "#9AA0AC", marginTop: 3 }}>{e.details}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {auditHasMore && (
+              <button onClick={() => loadAudit(false)} disabled={auditLoading} style={{
+                width: "100%", marginTop: 10, background: "transparent", border: "1px solid #D7DAE1", color: "#6B7280",
+                borderRadius: 4, padding: "8px", fontFamily: "monospace", fontSize: 10, cursor: "pointer",
+              }}>
+                {auditLoading ? "Chargement..." : "CHARGER PLUS"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+const AUDIT_LABELS = {
+  USER_CREATED: "Compte créé",
+  USER_DEACTIVATED: "Compte désactivé",
+  USER_REACTIVATED: "Compte réactivé",
+  PASSWORD_RESET: "Mot de passe réinitialisé",
+  LOGIN_SUCCESS: "Connexion réussie",
+  LOGIN_FAILED: "Échec de connexion",
+  ACCOUNT_LOCKED: "Compte verrouillé (tentatives multiples)",
+  MFA_LOGIN_FAILED: "Code 2FA invalide",
+  MFA_ENABLED: "2FA activée",
+  MFA_DISABLED: "2FA désactivée",
+  LEAD_REASSIGNED: "Lead réassigné",
+};
+
+const AUDIT_COLORS = {
+  USER_CREATED: "#22c55e",
+  USER_DEACTIVATED: "#ef4444",
+  USER_REACTIVATED: "#22c55e",
+  PASSWORD_RESET: "#f5a623",
+  LOGIN_SUCCESS: "#4a9eff",
+  LOGIN_FAILED: "#ef4444",
+  ACCOUNT_LOCKED: "#ef4444",
+  MFA_LOGIN_FAILED: "#ef4444",
+  MFA_ENABLED: "#22c55e",
+  MFA_DISABLED: "#f5a623",
+  LEAD_REASSIGNED: "#a855f7",
+};
+
+function auditLabel(action) { return AUDIT_LABELS[action] || action; }
+function auditColor(action) { return AUDIT_COLORS[action] || "#9AA0AC"; }
 
 function Field({ label, children }) {
   return (

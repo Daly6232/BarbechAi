@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.database import init_db
 from app.services.websocket_manager import manager
+from app.services.audit import prune_old_audit_logs
 
 logger = get_logger(__name__)
 
@@ -21,6 +22,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting BarbechAI backend...")
     init_db()
+    prune_old_audit_logs()
     manager.bind_loop(asyncio.get_running_loop())
     yield
     logger.info("Stopping BarbechAI backend...")

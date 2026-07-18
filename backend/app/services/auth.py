@@ -8,6 +8,7 @@ from app.core.logging import get_logger
 from app.core.security import generate_uuid
 from app.core.totp import generate_secret, get_totp, verify_totp, build_otpauth_uri
 from app.database import SessionLocal, User
+from app.services.audit import log_audit_event
 
 logger = get_logger(__name__)
 
@@ -78,7 +79,7 @@ def decode_access_token(token: str):
         return None
 
 
-def register_user(email: str, password: str, name: str, role: str, created_by_role: str = None):
+def register_user(email: str, password: str, name: str, role: str, requester: dict = None):
     """Register a new user. Only master_admin can create admin accounts.
     Only admin/master_admin can create back_office/field_agent accounts."""
     if role not in VALID_ROLES:
@@ -104,6 +105,8 @@ def register_user(email: str, password: str, name: str, role: str, created_by_ro
         )
         db.add(user)
         db.commit()
+        log_audit_event("USER_CREATED", actor=requester, target_type="user", target_id=user.id,
+                         details=f"email={email}, role={role}")
         return {"success": True, "user_id": user.id, "email": email, "role": role}
     except Exception as e:
         db.rollback()
@@ -118,6 +121,7 @@ def login_user(email: str, password: str, ip: str = None, device: str = None):
     try:
         user = db.query(User).filter(User.email == email).first()
         if not user or not user.is_active:
+            log_audit_event("LOGIN_FAILED", target_type="user", details=f"unknown or inactive account: {email}", ip=ip)
             return {"error": "Invalid credentials"}
 
         # Lockout check — happens before password verification so a locked
@@ -131,8 +135,13 @@ def login_user(email: str, password: str, ip: str = None, device: str = None):
             if user.failed_login_attempts >= MAX_FAILED_ATTEMPTS:
                 user.locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
                 db.commit()
+                log_audit_event("ACCOUNT_LOCKED", actor={"id": user.id, "name": user.name, "role": user.role},
+                                 target_type="user", target_id=user.id, ip=ip,
+                                 details=f"{MAX_FAILED_ATTEMPTS} failed attempts")
                 return {"error": f"Trop de tentatives échouées. Compte verrouillé {LOCKOUT_MINUTES} minutes."}
             db.commit()
+            log_audit_event("LOGIN_FAILED", actor={"id": user.id, "name": user.name, "role": user.role},
+                             target_type="user", target_id=user.id, ip=ip)
             return {"error": "Invalid credentials"}
 
         # Correct password — reset the failure counter regardless of what
@@ -152,6 +161,8 @@ def login_user(email: str, password: str, ip: str = None, device: str = None):
         if device:
             user.last_login_device = device
         db.commit()
+        log_audit_event("LOGIN_SUCCESS", actor={"id": user.id, "name": user.name, "role": user.role},
+                         target_type="user", target_id=user.id, ip=ip)
 
         token = create_access_token(user.id, user.email, user.role)
         return {
@@ -182,6 +193,8 @@ def verify_mfa_login(user_id: str, code: str, ip: str = None, device: str = None
         if not user.mfa_enabled or not user.mfa_secret:
             return {"error": "MFA not enabled for this account"}
         if not verify_totp(user.mfa_secret, code):
+            log_audit_event("MFA_LOGIN_FAILED", actor={"id": user.id, "name": user.name, "role": user.role},
+                             target_type="user", target_id=user.id, ip=ip)
             return {"error": "Code invalide"}
 
         user.last_login = datetime.utcnow()
@@ -190,6 +203,8 @@ def verify_mfa_login(user_id: str, code: str, ip: str = None, device: str = None
         if device:
             user.last_login_device = device
         db.commit()
+        log_audit_event("LOGIN_SUCCESS", actor={"id": user.id, "name": user.name, "role": user.role},
+                         target_type="user", target_id=user.id, ip=ip, details="via MFA")
 
         token = create_access_token(user.id, user.email, user.role)
         return {
@@ -266,6 +281,8 @@ def confirm_mfa(user_id: str, code: str):
             return {"error": "Code invalide"}
         user.mfa_enabled = True
         db.commit()
+        log_audit_event("MFA_ENABLED", actor={"id": user.id, "name": user.name, "role": user.role},
+                         target_type="user", target_id=user.id)
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -286,6 +303,8 @@ def disable_mfa(user_id: str, code: str):
         user.mfa_enabled = False
         user.mfa_secret = None
         db.commit()
+        log_audit_event("MFA_DISABLED", actor={"id": user.id, "name": user.name, "role": user.role},
+                         target_type="user", target_id=user.id)
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -346,9 +365,10 @@ def list_agents(requester_role: str):
         db.close()
 
 
-def set_user_active(requester_role: str, user_id: str, is_active: bool):
+def set_user_active(requester: dict, user_id: str, is_active: bool):
     """Activate/deactivate an account. Only admin/master_admin may do this,
     and only master_admin may touch another admin's account."""
+    requester_role = requester.get("role") if requester else None
     if requester_role not in ("admin", "master_admin"):
         return {"error": "Insufficient permissions"}
     db = SessionLocal()
@@ -360,6 +380,8 @@ def set_user_active(requester_role: str, user_id: str, is_active: bool):
             return {"error": "Only master_admin can modify admin accounts"}
         user.is_active = is_active
         db.commit()
+        log_audit_event("USER_REACTIVATED" if is_active else "USER_DEACTIVATED", actor=requester,
+                         target_type="user", target_id=user.id, details=f"target_email={user.email}")
         return {"success": True, "user_id": user.id, "is_active": user.is_active}
     except Exception as e:
         db.rollback()
@@ -369,8 +391,9 @@ def set_user_active(requester_role: str, user_id: str, is_active: bool):
         db.close()
 
 
-def reset_user_password(requester_role: str, user_id: str, new_password: str):
+def reset_user_password(requester: dict, user_id: str, new_password: str):
     """Admin-initiated password reset for an office/field account."""
+    requester_role = requester.get("role") if requester else None
     if requester_role not in ("admin", "master_admin"):
         return {"error": "Insufficient permissions"}
     ok, err = validate_password_strength(new_password)
@@ -385,6 +408,8 @@ def reset_user_password(requester_role: str, user_id: str, new_password: str):
             return {"error": "Only master_admin can modify admin accounts"}
         user.password_hash = hash_password(new_password)
         db.commit()
+        log_audit_event("PASSWORD_RESET", actor=requester, target_type="user", target_id=user.id,
+                         details=f"target_email={user.email}")
         return {"success": True, "user_id": user.id}
     except Exception as e:
         db.rollback()

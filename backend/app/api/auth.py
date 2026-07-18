@@ -12,6 +12,7 @@ from app.services.auth import (
     confirm_mfa,
     disable_mfa,
 )
+from app.services.audit import get_audit_log
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ def register(email: str, password: str, name: str, role: str, authorization: str
         if not requester or requester["role"] not in ["admin", "master_admin"]:
             return {"error": "Only admin or master_admin can create agent accounts"}
 
-    return register_user(email, password, name, role)
+    return register_user(email, password, name, role, requester=requester)
 
 
 @router.post("/auth/login")
@@ -102,7 +103,7 @@ def deactivate(user_id: str, authorization: str = Header(None)):
     requester, error = _require_requester(authorization)
     if error:
         return error
-    return set_user_active(requester["role"], user_id, False)
+    return set_user_active(requester, user_id, False)
 
 
 @router.post("/auth/reactivate")
@@ -110,7 +111,7 @@ def reactivate(user_id: str, authorization: str = Header(None)):
     requester, error = _require_requester(authorization)
     if error:
         return error
-    return set_user_active(requester["role"], user_id, True)
+    return set_user_active(requester, user_id, True)
 
 
 @router.post("/auth/reset-password")
@@ -118,7 +119,7 @@ def reset_password(user_id: str, new_password: str, authorization: str = Header(
     requester, error = _require_requester(authorization)
     if error:
         return error
-    return reset_user_password(requester["role"], user_id, new_password)
+    return reset_user_password(requester, user_id, new_password)
 
 
 # --- MFA (admin/master_admin only) ---
@@ -145,3 +146,15 @@ def mfa_disable(code: str, authorization: str = Header(None)):
     if error:
         return error
     return disable_mfa(requester["id"], code)
+
+
+# --- Audit trail (admin/master_admin only) ---
+
+@router.get("/auth/audit-log")
+def audit_log(limit: int = 100, offset: int = 0, authorization: str = Header(None)):
+    requester, error = _require_requester(authorization)
+    if error:
+        return error
+    if requester["role"] not in ("admin", "master_admin"):
+        return {"error": "Insufficient permissions"}
+    return get_audit_log(limit=min(limit, 500), offset=offset)

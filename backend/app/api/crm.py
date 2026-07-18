@@ -32,7 +32,7 @@ def assign(lead_id: str, agent_id: str, agent_name: str = "", authorization: str
     user, error = require_auth(authorization, CRM_ROLES)
     if error:
         return error
-    return assign_lead(lead_id, agent_id, agent_name)
+    return assign_lead(lead_id, agent_id, agent_name, requester=user)
 
 
 @router.get("/crm/pipeline")

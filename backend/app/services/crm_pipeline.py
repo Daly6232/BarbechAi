@@ -146,7 +146,7 @@ def update_status(lead_id: str, new_status: str):
         db.close()
 
 
-def assign_lead(lead_id: str, agent_id: str, agent_name: str = ""):
+def assign_lead(lead_id: str, agent_id: str, agent_name: str = "", requester: dict = None):
     """Assign a lead to a field agent. This didn't exist before —
     assigned_field_agent was a column nothing ever wrote to."""
     db = SessionLocal()
@@ -154,9 +154,13 @@ def assign_lead(lead_id: str, agent_id: str, agent_name: str = ""):
         lead = db.query(Lead).filter(Lead.id == lead_id).first()
         if not lead:
             return {"error": "Lead not found"}
+        previous_agent = lead.assigned_agent_name
         lead.assigned_field_agent = agent_id
         lead.assigned_agent_name = agent_name
         db.commit()
+        from app.services.audit import log_audit_event
+        log_audit_event("LEAD_REASSIGNED", actor=requester, target_type="lead", target_id=lead_id,
+                         details=f"{previous_agent or 'unassigned'} -> {agent_name or agent_id}")
         return {"success": True, "lead_id": lead_id, "assigned_field_agent": agent_id}
     except Exception as exc:
         db.rollback()

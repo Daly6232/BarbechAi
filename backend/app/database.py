@@ -192,6 +192,25 @@ class CRMPipeline(Base):
     )
 
 
+class AuditLog(Base):
+    """Privileged/admin action trail — account changes, permission changes,
+    login events. Distinct from AgentActivity, which only tracks lead
+    contact history. This is what SOC 2-style audits actually ask for:
+    who did what to the *system*, not just to a lead."""
+    __tablename__ = "audit_log"
+
+    id = Column(String, primary_key=True)
+    actor_id = Column(String, nullable=True)       # null = system/unauthenticated event
+    actor_name = Column(String, nullable=True)
+    actor_role = Column(String, nullable=True)
+    action = Column(String, nullable=False)         # e.g. USER_CREATED, LOGIN_FAILED, MFA_ENABLED
+    target_type = Column(String, nullable=True)     # e.g. "user", "lead"
+    target_id = Column(String, nullable=True)
+    details = Column(Text, nullable=True)
+    ip = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+
 class AgentActivity(Base):
     __tablename__ = "agent_activity"
 
@@ -276,6 +295,8 @@ def init_db():
                 "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
                 "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
                 "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+                "CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log (timestamp);",
+                "CREATE INDEX IF NOT EXISTS ix_audit_log_actor ON audit_log (actor_id);",
             ]
     else:
         migrations = [
@@ -290,6 +311,8 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
             "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
             "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+            "CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log (timestamp);",
+            "CREATE INDEX IF NOT EXISTS ix_audit_log_actor ON audit_log (actor_id);",
         ]
 
     # Each statement gets its OWN connection/transaction. Previously these all
