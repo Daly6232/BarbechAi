@@ -45,7 +45,15 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
-    
+
+    # --- Security hardening additions ---
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    last_login_ip = Column(String, nullable=True)
+    last_login_device = Column(String, nullable=True)
+    mfa_secret = Column(String, nullable=True)
+    mfa_enabled = Column(Boolean, default=False)
+
     activities = relationship(
         "AgentActivity",
         back_populates="user",
@@ -244,6 +252,25 @@ def init_db():
                 except Exception as e:
                     logger.warning("Startup Migration Failed (sqlite): %s", str(e))
 
+            users_cols = {
+                row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
+            }
+            user_security_cols = {
+                "failed_login_attempts": "INTEGER DEFAULT 0",
+                "locked_until": "DATETIME",
+                "last_login_ip": "TEXT",
+                "last_login_device": "TEXT",
+                "mfa_secret": "TEXT",
+                "mfa_enabled": "BOOLEAN DEFAULT 0",
+            }
+            for col, coltype in user_security_cols.items():
+                if users_cols and col not in users_cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {coltype}"))
+                        logger.info("Startup Migration Success (sqlite): added users.%s", col)
+                    except Exception as e:
+                        logger.warning("Startup Migration Failed (sqlite): %s", str(e))
+
             # SQLite creates indexes via CREATE INDEX IF NOT EXISTS fine, no dialect issue there.
             migrations = [
                 "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
@@ -254,6 +281,12 @@ def init_db():
         migrations = [
             "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
             "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_device TEXT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE;",
             "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
             "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
             "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",

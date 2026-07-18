@@ -1,4 +1,3 @@
-import { apiFetch } from "../api";
 import { useState, useEffect } from "react";
 import { API } from "../config";
 import { theme } from "../theme";
@@ -11,12 +10,22 @@ export default function LoginPage({ onLogin }) {
   const [error, setError] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  // MFA second step
+  const [mfaUserId, setMfaUserId] = useState(null);
+  const [mfaCode, setMfaCode] = useState("");
+
   useEffect(() => {
     if (sessionStorage.getItem("barbechai_session_expired")) {
       setSessionExpired(true);
       sessionStorage.removeItem("barbechai_session_expired");
     }
   }, []);
+
+  const finishLogin = (data) => {
+    localStorage.setItem("barbechai_token", data.token);
+    localStorage.setItem("barbechai_user", JSON.stringify(data.user));
+    onLogin(data.user, data.token);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -34,9 +43,11 @@ export default function LoginPage({ onLogin }) {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      localStorage.setItem("barbechai_token", data.token);
-      localStorage.setItem("barbechai_user", JSON.stringify(data.user));
-      onLogin(data.user, data.token);
+      if (data.mfa_required) {
+        setMfaUserId(data.user_id);
+        return;
+      }
+      finishLogin(data);
     } catch (e) {
       setError(e.message === "Invalid credentials" ? "Email ou mot de passe incorrect" : e.message);
     } finally {
@@ -44,8 +55,30 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
+  const handleMfaSubmit = async () => {
+    if (mfaCode.length < 6) {
+      setError("Entrez le code à 6 chiffres");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ user_id: mfaUserId, code: mfaCode });
+      const res = await fetch(`${API}/auth/login/mfa?${params.toString()}`, { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      finishLogin(data);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") handleLogin();
+    if (e.key !== "Enter") return;
+    if (mfaUserId) handleMfaSubmit();
+    else handleLogin();
   };
 
   return (
@@ -67,7 +100,7 @@ export default function LoginPage({ onLogin }) {
 
         <div style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: 10, padding: 28, boxShadow: "0 1px 3px rgba(18,24,48,0.06)" }}>
           <div style={{ fontFamily: "monospace", fontSize: 10, color: theme.navy, letterSpacing: 2, marginBottom: 20, textAlign: "center" }}>
-            CONNEXION
+            {mfaUserId ? "VÉRIFICATION EN 2 ÉTAPES" : "CONNEXION"}
           </div>
 
           {sessionExpired && !error && (
@@ -76,29 +109,55 @@ export default function LoginPage({ onLogin }) {
             </div>
           )}
 
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 6 }}>EMAIL</div>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="votre@email.com"
-              style={{ width: "100%", background: theme.bg, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, color: theme.text, padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
-            />
-          </div>
+          {!mfaUserId ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 6 }}>EMAIL</div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="votre@email.com"
+                  style={{ width: "100%", background: theme.bg, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, color: theme.text, padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
+                />
+              </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 6 }}>MOT DE PASSE</div>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="••••••••"
-              style={{ width: "100%", background: theme.bg, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, color: theme.text, padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
-            />
-          </div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 6 }}>MOT DE PASSE</div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="••••••••"
+                  style={{ width: "100%", background: theme.bg, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, color: theme.text, padding: "11px 14px", fontSize: 14, fontFamily: "Inter, sans-serif" }}
+                />
+              </div>
+            </>
+          ) : (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "monospace", fontSize: 9, color: theme.textMuted, letterSpacing: 1, marginBottom: 6 }}>
+                CODE DE VOTRE APPLICATION D'AUTHENTIFICATION
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onKeyPress={handleKeyPress}
+                placeholder="000000"
+                style={{ width: "100%", background: theme.bg, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, color: theme.text, padding: "11px 14px", fontSize: 20, letterSpacing: 6, textAlign: "center", fontFamily: "monospace" }}
+              />
+              <button
+                onClick={() => { setMfaUserId(null); setMfaCode(""); setError(null); }}
+                style={{ background: "none", border: "none", color: theme.textMuted, fontFamily: "monospace", fontSize: 10, marginTop: 10, cursor: "pointer", textDecoration: "underline" }}
+              >
+                ← Retour
+              </button>
+            </div>
+          )}
 
           {error && (
             <div style={{ background: theme.dangerSoft, border: `1px solid ${theme.danger}33`, borderRadius: 6, padding: "10px 14px", fontFamily: "monospace", fontSize: 12, color: theme.danger, marginBottom: 16 }}>
@@ -106,13 +165,13 @@ export default function LoginPage({ onLogin }) {
             </div>
           )}
 
-          <button onClick={handleLogin} disabled={loading} style={{
+          <button onClick={mfaUserId ? handleMfaSubmit : handleLogin} disabled={loading} style={{
             width: "100%", background: loading ? theme.divider : theme.navy,
             color: loading ? theme.textMuted : "#fff", border: "none", borderRadius: 6,
             padding: "13px", fontSize: 14, fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
           }}>
-            {loading ? "Connexion..." : "Se connecter →"}
+            {loading ? "Connexion..." : mfaUserId ? "Vérifier →" : "Se connecter →"}
           </button>
         </div>
 

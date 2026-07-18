@@ -32,6 +32,16 @@ class Settings:
     REQUEST_TIMEOUT = 10
     MAX_WORKERS = 4
 
+    # CORS — comma-separated list in env. Defaults to the actual deployed
+    # frontend + local dev, replacing the previous wildcard "*" which let
+    # any website make authenticated requests against this API.
+    ALLOWED_ORIGINS = [
+        o.strip() for o in os.getenv(
+            "ALLOWED_ORIGINS",
+            "https://barbech-ai.vercel.app,http://localhost:5173,http://localhost:3000"
+        ).split(",") if o.strip()
+    ]
+
     # WebSocket
     DEFAULT_SESSION = "default"
 

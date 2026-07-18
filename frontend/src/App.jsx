@@ -7,7 +7,8 @@ import AgentPage from "./pages/AgentPage";
 import TeamPage from "./pages/TeamPage";
 import ExportPage from "./pages/ExportPage";
 import UsersPage from "./pages/UsersPage";
-import { setAuthExpiredHandler } from "./api";
+import { apiFetch, setAuthExpiredHandler } from "./api";
+import { API } from "./config";
 import { theme } from "./theme";
 import logo from "./assets/zayer-logo.png";
 
@@ -54,6 +55,23 @@ export default function App() {
     }
     setChecking(false);
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    // Refresh the token well before its 12h expiry so an agent who keeps
+    // the app open through a shift never gets bounced back to login.
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch(`${API}/auth/refresh`, { method: "POST" });
+        const data = await res.json();
+        if (data?.token) {
+          localStorage.setItem("barbechai_token", data.token);
+          setToken(data.token);
+        }
+      } catch {}
+    }, 30 * 60 * 1000); // every 30 minutes
+    return () => clearInterval(interval);
+  }, [token]);
 
   const handleLogin = (loggedInUser, loggedInToken) => {
     setUser(loggedInUser);
