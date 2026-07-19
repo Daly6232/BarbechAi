@@ -2,6 +2,7 @@ import random
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 import requests
 from duckduckgo_search import DDGS  # Corrected import from 'ddgs' to standard 'duckduckgo_search'
@@ -11,6 +12,38 @@ from app.core.logging import get_logger
 from app.services.websocket_manager import manager
 
 logger = get_logger(__name__)
+
+# DuckDuckGo/Foursquare free-text results carry no geographic validation —
+# a generic business name can easily return a similarly-named business
+# from anywhere. These businesses are Tunisia-only, so a website whose
+# domain ends in one of these European ccTLDs is essentially never the
+# real match and is safe to reject outright.
+FOREIGN_TLD_BLOCKLIST = {
+    "nl", "de", "it", "be", "es", "fr", "uk", "pt", "pl", "se",
+    "no", "dk", "ch", "at", "ie", "gr", "ro", "hu", "cz", "sk",
+}
+
+# Matches Tunisian landline/mobile numbers, with or without +216/00216
+# prefix, after stripping spaces/dashes/dots.
+TN_PHONE_RE = re.compile(r"^(?:\+216|00216|216)?[24579]\d{7}$")
+
+
+def _has_foreign_tld(url: str) -> bool:
+    try:
+        host = urlparse(url).netloc.lower()
+        if not host:
+            return False
+        tld = host.split(".")[-1]
+        return tld in FOREIGN_TLD_BLOCKLIST
+    except Exception:
+        return False
+
+
+def _looks_tunisian_phone(phone: str) -> bool:
+    if not phone:
+        return False
+    cleaned = re.sub(r"[\s\-\.]", "", phone)
+    return bool(TN_PHONE_RE.match(cleaned))
 
 HEADERS_LIST = [
     {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
@@ -49,6 +82,8 @@ def is_valid_website(url: str) -> bool:
     if "facebook.com" in url_lower or "instagram.com" in url_lower:
         return False
     if "/posts/" in url_lower or "/videos/" in url_lower or "/watch" in url_lower:
+        return False
+    if _has_foreign_tld(url):
         return False
     return True
 
@@ -296,8 +331,15 @@ def enrich_business(business_id, name, city, lat, lng, session_id=None, on_compl
                 merged["sources_used"].append(source)
                 for field in ("website", "facebook", "instagram", "phone", "email", "address", "opening_hours"):
                     val = result.get(field)
-                    if val and not merged[field]:
-                        merged[field] = val
+                    if not val or merged[field]:
+                        continue
+                    if field == "phone" and not _looks_tunisian_phone(val):
+                        logger.info(
+                            "Rejected non-Tunisian-formatted phone '%s' from source '%s'",
+                            val, source,
+                        )
+                        continue
+                    merged[field] = val
     finally:
         session.close()
 

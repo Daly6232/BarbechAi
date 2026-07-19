@@ -13,10 +13,57 @@ from app.services.reconciliation import reconcile
 from app.services.websocket_manager import manager
 from app.database import SessionLocal, Business, Enrichment, Lead
 from app.core.logging import get_logger
+from app.data.location_bbox import LOCATION_BBOX
 
 logger = get_logger(__name__)
 router = APIRouter()
 MAX_RESULTS = 100
+
+# How far outside a searched city's bounding box (in degrees, ~0.5 ≈ 50km) a
+# result's real coordinates may fall before we treat it as an unrelated
+# false match rather than a legitimate result near a delegation boundary.
+AREA_BUFFER_DEG = 0.5
+
+
+def _resolve_real_city(lat, lng, fallback_city: str) -> str:
+    """Determine the actual locality a business sits in from its real
+    coordinates, instead of trusting the search-seed city blindly.
+    Multi-source APIs (Foursquare/TomTom/Geoapify/etc.) don't always
+    respect their location bias, so a result can land far from the city
+    that was searched — this makes the stored `city` field reflect
+    reality instead of the search parameter."""
+    if lat is None or lng is None:
+        return fallback_city
+    try:
+        lat_f, lng_f = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return fallback_city
+    for name, (south, west, north, east) in LOCATION_BBOX.items():
+        if south <= lat_f <= north and west <= lng_f <= east:
+            return name
+    return fallback_city
+
+
+def _within_search_area(lat, lng, city: str, buffer_deg: float = AREA_BUFFER_DEG) -> bool:
+    """Reject discoveries whose coordinates fall nowhere near the city that
+    was actually searched. A generous buffer tolerates legitimate results
+    near a delegation boundary while still catching results that are
+    wildly out of area — a different governorate, or an unrelated match
+    from another country entirely."""
+    if lat is None or lng is None:
+        return True  # can't disprove it without coordinates — don't block
+    bbox = LOCATION_BBOX.get(city)
+    if not bbox:
+        return True  # unknown city key, nothing to validate against
+    try:
+        lat_f, lng_f = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return True
+    south, west, north, east = bbox
+    return (
+        (south - buffer_deg) <= lat_f <= (north + buffer_deg)
+        and (west - buffer_deg) <= lng_f <= (east + buffer_deg)
+    )
 
 
 def on_enrichment_complete(business_id, enrichment_data):
@@ -68,12 +115,13 @@ def _get_saved_business_names(db, city: str, category: str) -> set:
 def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: str = "NEW") -> dict:
     biz_id = str(uuid.uuid4())
     category = business_type
+    real_city = _resolve_real_city(biz.get("lat"), biz.get("lng"), city)
 
     db_biz = Business(
         id=biz_id,
         name=biz["name"],
         category=category,
-        city=city,
+        city=real_city,
         address=biz.get("address", ""),
         lat=biz.get("lat"),
         lng=biz.get("lng"),
@@ -109,7 +157,7 @@ def _write_business_to_db(db, biz: dict, city: str, business_type: str, status: 
         "id": biz_id,
         "name": biz["name"],
         "category": category,
-        "city": city,
+        "city": real_city,
         "address": biz.get("address", ""),
         "phone": biz.get("phone", ""),
         "email": biz.get("email", ""),
@@ -171,6 +219,14 @@ async def _run_phase_two(city: str, business_type: str, osm_results: list, sessi
             })
 
         for biz in new_discoveries:
+            if not _within_search_area(biz.get("lat"), biz.get("lng"), city):
+                logger.warning(
+                    "Discarding out-of-area discovery '%s' (lat=%s, lng=%s) while "
+                    "searching '%s' — likely an unrelated match from another location.",
+                    biz.get("name"), biz.get("lat"), biz.get("lng"), city,
+                )
+                continue
+
             # Safely perform database insertion off-thread
             biz_result = await asyncio.to_thread(_write_business_to_db, db, biz, city, business_type, "NEW")
             db.commit()
