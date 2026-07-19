@@ -7,7 +7,7 @@ load_dotenv()
 class Settings:
     # Application
     APP_NAME = "BarbechAI"
-    APP_VERSION = "1.0.0"
+    APP_VERSION = "1.1.0"
     ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
     # Auto-detect Termux (local phone testing) to disable Rust-based

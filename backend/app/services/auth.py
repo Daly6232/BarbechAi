@@ -425,13 +425,17 @@ def reset_user_password(requester: dict, user_id: str, new_password: str):
 
 def require_auth(authorization: str, allowed_roles: list = None):
     """Validate a Bearer token and optionally restrict by role.
-    Returns (user_dict, None) on success, or (None, error_dict) on failure."""
+    Returns (user_dict, None) on success, or (None, JSONResponse) on failure.
+    Since nearly every protected endpoint routes through this function,
+    fixing status codes here fixes them almost everywhere at once — most
+    routes just `return error` from whatever this returns."""
+    from app.core.errors import error_response, UNAUTHORIZED, FORBIDDEN
     if not authorization:
-        return None, {"error": "No token provided"}
+        return None, error_response("No token provided", UNAUTHORIZED)
     token = authorization.replace("Bearer ", "")
     user = get_current_user(token)
     if not user:
-        return None, {"error": "Invalid or expired token"}
+        return None, error_response("Invalid or expired token", UNAUTHORIZED)
     if allowed_roles and user["role"] not in allowed_roles:
-        return None, {"error": "Insufficient permissions"}
+        return None, error_response("Insufficient permissions", FORBIDDEN)
     return user, None

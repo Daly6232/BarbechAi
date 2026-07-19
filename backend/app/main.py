@@ -31,6 +31,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
+    description="BarbechAi CRM — by ZAYER Digital. Interactive docs at /docs, "
+                 "versioned endpoints under /api/v1, legacy unprefixed paths "
+                 "kept alive for existing clients.",
     lifespan=lifespan,
 )
 
@@ -42,11 +45,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(discover_router)
-app.include_router(crm_router)
-app.include_router(agent_router)
-app.include_router(ws_router)
-app.include_router(auth_router)
+# Mounted twice on purpose: unprefixed paths stay alive for the
+# already-built/distributed mobile APK and any cached frontend bundle, while
+# /api/v1/... is the versioned path new clients should use going forward.
+# This is how you introduce versioning without a hard breaking cutover.
+for router in (discover_router, crm_router, agent_router, ws_router, auth_router):
+    app.include_router(router)
+    app.include_router(router, prefix="/api/v1")
 
 
 @app.api_route("/health", methods=["GET", "HEAD"])

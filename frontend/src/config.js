@@ -7,9 +7,9 @@ const isNativeApp = typeof window !== "undefined" && !!window.Capacitor?.isNativ
 const isLocalhost = !isNativeApp && typeof window !== "undefined" &&
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-export const API = isLocalhost
+export const API = (isLocalhost
   ? "http://localhost:8000"
-  : "https://barbechai-1.onrender.com";
+  : "https://barbechai-1.onrender.com") + "/api/v1";
 
 export const WS_BASE = isLocalhost
   ? "ws://localhost:8000"
