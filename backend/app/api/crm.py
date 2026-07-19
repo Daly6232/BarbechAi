@@ -2,6 +2,7 @@ from fastapi import APIRouter, Header
 from app.services.auth import require_auth
 from app.services.crm_pipeline import (
     get_pipeline,
+    get_pipeline_stats,
     get_crm_leads,
     add_to_crm,
     update_crm_status,
@@ -38,6 +39,15 @@ def assign(lead_id: str, agent_id: str, agent_name: str = "", authorization: str
     if error:
         return error
     return assign_lead(lead_id, agent_id, agent_name, requester=user)
+
+
+@router.get("/crm/pipeline/stats")
+def pipeline_stats(authorization: str = Header(None)):
+    """True totals across the whole table, independent of pagination."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
+    return get_pipeline_stats()
 
 
 @router.get("/crm/pipeline")

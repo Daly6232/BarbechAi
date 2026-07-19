@@ -162,6 +162,27 @@ def retention_purge(lead_ids: list, requester: dict = None):
     return {"success": True, "anonymized": succeeded, "requested": len(lead_ids)}
 
 
+def get_pipeline_stats():
+    """Aggregate counts across the ENTIRE leads table via SQL COUNT, not
+    dependent on how many rows happen to be loaded client-side. The stat
+    badges were previously computed by filtering the loaded page of leads
+    — correct only when everything was loaded unpaginated; silently wrong
+    once pagination was introduced."""
+    db = SessionLocal()
+    try:
+        total = db.query(Lead).count()
+        high = db.query(Lead).filter(Lead.opportunity_level == "HIGH").count()
+        medium = db.query(Lead).filter(Lead.opportunity_level == "MEDIUM").count()
+        low = db.query(Lead).filter(Lead.opportunity_level == "LOW").count()
+        enriched = db.query(Lead).filter(Lead.status == "ENRICHED").count()
+        return {"total": total, "high": high, "medium": medium, "low": low, "enriched": enriched}
+    except Exception as exc:
+        logger.exception(exc)
+        return {"total": 0, "high": 0, "medium": 0, "low": 0, "enriched": 0, "error": str(exc)}
+    finally:
+        db.close()
+
+
 def get_pipeline(limit: int = 200, offset: int = 0):
     """Returns all auto-discovered leads (Leads page).
 

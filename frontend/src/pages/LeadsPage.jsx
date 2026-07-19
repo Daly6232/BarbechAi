@@ -27,9 +27,18 @@ export default function LeadsPage() {
   const [leadsOffset, setLeadsOffset] = useState(0);
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [pipelineStats, setPipelineStats] = useState({ total: 0, high: 0, medium: 0, low: 0, enriched: 0 });
   const stopFlag = useRef(false);
 
-  useEffect(() => { fetchLeads(); fetchPendingCount(); }, []);
+  useEffect(() => { fetchLeads(); fetchPendingCount(); fetchStats(); }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await apiFetch(`${API}/crm/pipeline/stats`);
+      const data = await res.json();
+      setPipelineStats(data);
+    } catch (e) {}
+  };
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -130,12 +139,8 @@ export default function LeadsPage() {
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
-  const stats = {
-    high: leads.filter(l => l.opportunity_level === "HIGH").length,
-    medium: leads.filter(l => l.opportunity_level === "MEDIUM").length,
-    low: leads.filter(l => l.opportunity_level === "LOW").length,
-    enriched: leads.filter(l => l.status === "ENRICHED").length,
-  };
+  // Stat badges now come from pipelineStats (fetched via /crm/pipeline/stats),
+  // not from filtering `leads`, since `leads` only holds the current page.
 
   const resetFilters = () => {
     setSearch("");
@@ -179,7 +184,7 @@ export default function LeadsPage() {
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {[["TOTAL", leads.length, "#6B7280"], ["HIGH", stats.high, "#121830"], ["MED", stats.medium, "#f5a623"], ["LOW", stats.low, "#4a9eff"], ["ENRICHED", stats.enriched, "#22c55e"]].map(([l, v, c]) => (
+        {[["TOTAL", pipelineStats.total, "#6B7280"], ["HIGH", pipelineStats.high, "#121830"], ["MED", pipelineStats.medium, "#f5a623"], ["LOW", pipelineStats.low, "#4a9eff"], ["ENRICHED", pipelineStats.enriched, "#22c55e"]].map(([l, v, c]) => (
           <div key={l} style={{ background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 4, padding: "6px 14px", textAlign: "center" }}>
             <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: c }}>{v}</div>
             <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2 }}>{l}</div>

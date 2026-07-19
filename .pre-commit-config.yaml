@@ -1,0 +1,26 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]
+      - id: check-yaml
+      - id: mixed-line-ending
+
+  - repo: local
+    hooks:
+      - id: python-syntax-check
+        name: Python syntax check (backend)
+        entry: python3 -m py_compile
+        language: system
+        files: ^backend/.*\.py$
+
+      - id: python-import-integrity
+        name: Verify every function referenced by name still exists
+        entry: python3 backend/scripts/check_imports.py
+        language: system
+        files: ^backend/app/.*\.py$
+        pass_filenames: false
