@@ -333,7 +333,7 @@ def get_current_user(token: str):
         db.close()
 
 
-def list_agents(requester_role: str):
+def list_agents(requester_role: str, limit: int = 500, offset: int = 0):
     """Admin/master_admin can view all agents."""
     if requester_role not in ["admin", "master_admin"]:
         return {"error": "Insufficient permissions"}
@@ -344,8 +344,12 @@ def list_agents(requester_role: str):
 
     db = SessionLocal()
     try:
-        users = db.query(User).filter(User.role.in_(visible_roles)).all()
+        base_query = db.query(User).filter(User.role.in_(visible_roles))
+        total = base_query.count()
+        users = base_query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
         return {
+            "total": total,
+            "offset": offset,
             "agents": [
                 {
                     "id": u.id,

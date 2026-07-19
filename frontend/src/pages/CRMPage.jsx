@@ -26,6 +26,7 @@ export default function CRMPage({ user }) {
   // stages) — collapsed by default only once a stage has been reviewed,
   // everything starts open so nothing's hidden the first time you land here.
   const [collapsed, setCollapsed] = useState({});
+  const [crmTotal, setCrmTotal] = useState(0);
 
   useEffect(() => { fetchCRMLeads(); fetchAgents(); }, []);
 
@@ -52,9 +53,10 @@ export default function CRMPage({ user }) {
   const fetchCRMLeads = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API}/crm/leads`);
+      const res = await apiFetch(`${API}/crm/leads?limit=200&offset=0`);
       const data = await res.json();
       setLeads(data.leads || []);
+      setCrmTotal(data.total ?? (data.leads || []).length);
     } catch (e) {
       setLeads([]);
     } finally {
@@ -93,6 +95,11 @@ export default function CRMPage({ user }) {
             <button onClick={fetchCRMLeads} style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
           </div>
         </div>
+        {crmTotal > leads.length && (
+          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#f5a623", marginTop: 8 }}>
+            ⚠ Affichage des {leads.length} premiers sur {crmTotal} leads CRM. Utilisez les filtres pour affiner.
+          </div>
+        )}
       </div>
 
       {loading ? (

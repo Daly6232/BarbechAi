@@ -24,6 +24,9 @@ export default function LeadsPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [enriching, setEnriching] = useState(false);
   const [enrichProgress, setEnrichProgress] = useState({ done: 0, total: 0 });
+  const [leadsOffset, setLeadsOffset] = useState(0);
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const stopFlag = useRef(false);
 
   useEffect(() => { fetchLeads(); fetchPendingCount(); }, []);
@@ -31,13 +34,29 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API}/crm/pipeline`);
+      const res = await apiFetch(`${API}/crm/pipeline?limit=200&offset=0`);
       const data = await res.json();
-      setLeads(data.leads || []);
+      const initial = data.leads || [];
+      setLeads(initial);
+      setLeadsTotal(data.total ?? initial.length);
+      setLeadsOffset(initial.length);
     } catch (e) {
       setLeads([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreLeads = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await apiFetch(`${API}/crm/pipeline?limit=200&offset=${leadsOffset}`);
+      const data = await res.json();
+      const more = data.leads || [];
+      setLeads(prev => [...prev, ...more]);
+      setLeadsOffset(prev => prev + more.length);
+    } catch (e) {} finally {
+      setLoadingMore(false);
     }
   };
 
@@ -258,6 +277,15 @@ export default function LeadsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && leadsOffset < leadsTotal && (
+        <button onClick={loadMoreLeads} disabled={loadingMore} style={{
+          width: "100%", marginTop: 12, background: "#FFFFFF", border: "1px solid #D7DAE1", color: "#6B7280",
+          borderRadius: 6, padding: "12px", fontFamily: "monospace", fontSize: 11, cursor: "pointer",
+        }}>
+          {loadingMore ? "Chargement..." : `CHARGER PLUS (${leadsTotal - leadsOffset} restants)`}
+        </button>
       )}
 
       {selected && <BusinessPopup biz={selected} onClose={() => setSelected(null)} />}

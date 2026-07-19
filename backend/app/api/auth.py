@@ -88,14 +88,14 @@ def me(authorization: str = Header(None)):
 
 
 @router.get("/auth/agents")
-def agents(authorization: str = Header(None)):
+def agents(limit: int = 500, offset: int = 0, authorization: str = Header(None)):
     if not authorization:
         return {"error": "No token provided"}
     token = authorization.replace("Bearer ", "")
     user = get_current_user(token)
     if not user:
         return {"error": "Invalid or expired token"}
-    return list_agents(user["role"])
+    return list_agents(user["role"], limit=min(limit, 1000), offset=offset)
 
 
 @router.post("/auth/deactivate")

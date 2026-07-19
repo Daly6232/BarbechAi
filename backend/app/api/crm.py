@@ -41,21 +41,21 @@ def assign(lead_id: str, agent_id: str, agent_name: str = "", authorization: str
 
 
 @router.get("/crm/pipeline")
-def pipeline(authorization: str = Header(None)):
+def pipeline(limit: int = 200, offset: int = 0, authorization: str = Header(None)):
     """All auto-discovered leads (Leads page)."""
     user, error = require_auth(authorization, CRM_ROLES)
     if error:
         return error
-    return get_pipeline()
+    return get_pipeline(limit=min(limit, 500), offset=offset)
 
 
 @router.get("/crm/leads")
-def crm_leads(authorization: str = Header(None)):
+def crm_leads(limit: int = 200, offset: int = 0, authorization: str = Header(None)):
     """Only manually added CRM leads (CRM page)."""
     user, error = require_auth(authorization, CRM_ROLES)
     if error:
         return error
-    return get_crm_leads()
+    return get_crm_leads(limit=min(limit, 500), offset=offset)
 
 
 @router.post("/crm/add")
