@@ -12,6 +12,37 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Businesses whose coordinates are farther apart than this can never be the
+# same physical place, regardless of name similarity. Prevents cross-country
+# false merges (e.g. a Tunisian business matched to a similarly-named
+# business in Netherlands/Germany/Italy purely on string similarity).
+MAX_MATCH_DISTANCE_KM = 15.0
+
+
+def _haversine_km(lat1, lng1, lat2, lng2) -> float:
+    from math import radians, sin, cos, sqrt, atan2
+    r = 6371.0
+    lat1, lng1, lat2, lng2 = map(radians, [lat1, lng1, lat2, lng2])
+    dlat = lat2 - lat1
+    dlng = lng2 - lng1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlng / 2) ** 2
+    return 2 * r * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _plausible_same_place(biz1: dict, biz2: dict) -> bool:
+    """False only when both records have coordinates AND those coordinates
+    are implausibly far apart. If either lacks coordinates, name similarity
+    alone decides (existing behavior preserved for that edge case)."""
+    lat1, lng1 = biz1.get("lat"), biz1.get("lng")
+    lat2, lng2 = biz2.get("lat"), biz2.get("lng")
+    if lat1 is None or lng1 is None or lat2 is None or lng2 is None:
+        return True
+    try:
+        return _haversine_km(float(lat1), float(lng1), float(lat2), float(lng2)) <= MAX_MATCH_DISTANCE_KM
+    except (TypeError, ValueError):
+        return True
+
+
 # Source Trust Hierarchy - OSM & Foursquare have curated/verified details,
 # while aggregate services get lower priority during data conflicts.
 SOURCE_PRIORITY = {
@@ -169,7 +200,7 @@ def reconcile(osm_results: List[Dict[str, Any]], multi_source_results: List[Dict
         best_score = 0.0
         for osm_key, osm_biz in merged.items():
             sim = _name_similarity(name, osm_biz.get("name", ""))
-            if sim > best_score and sim >= 0.75:
+            if sim > best_score and sim >= 0.75 and _plausible_same_place(ext_biz, osm_biz):
                 best_score = sim
                 matched_key = osm_key
 
@@ -179,7 +210,7 @@ def reconcile(osm_results: List[Dict[str, Any]], multi_source_results: List[Dict
             ext_matched = None
             for nk, nb in enumerate(new_discoveries):
                 sim = _name_similarity(name, nb.get("name", ""))
-                if sim >= 0.75:
+                if sim >= 0.75 and _plausible_same_place(ext_biz, nb):
                     ext_matched = nk
                     break
 
