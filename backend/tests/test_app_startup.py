@@ -9,14 +9,7 @@ def test_app_builds_without_import_errors():
 
 def test_all_routes_registered():
     import app.main as main_module
-    def iter_paths(routes):
-        for route in routes:
-            if hasattr(route, "path"):
-                yield route.path
-            if hasattr(route, "routes"):
-                yield from iter_paths(route.routes)
-
-    paths = set(iter_paths(main_module.app.routes))
+    paths = set(main_module.app.openapi()["paths"].keys())
     # Spot-check a handful of core endpoints exist, both legacy and versioned.
     for expected in ["/crm/pipeline", "/crm/leads", "/auth/login", "/health"]:
         assert expected in paths, f"{expected} missing from registered routes"
