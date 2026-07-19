@@ -160,37 +160,58 @@ def retention_purge(lead_ids: list, requester: dict = None):
     results = [anonymize_lead(lid, requester=requester) for lid in lead_ids]
     succeeded = sum(1 for r in results if r.get("success"))
     return {"success": True, "anonymized": succeeded, "requested": len(lead_ids)}
-    """Returns all auto-discovered leads (Leads page)."""
+
+
+def get_pipeline(limit: int = 200, offset: int = 0):
+    """Returns all auto-discovered leads (Leads page).
+
+    Previously this ran 2 extra queries per lead (Business + Enrichment) in
+    a loop — fine at 14 leads, but N+1 queries scale badly. Now it's a
+    single outer-joined query. Also paginated: unbounded before, which
+    would eventually return the entire table in one response as the lead
+    count grows."""
     db = SessionLocal()
     try:
-        leads = db.query(Lead).order_by(Lead.created_at.desc()).all()
-        results = []
-        for lead in leads:
-            business = db.query(Business).filter(Business.id == lead.business_id).first()
-            enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
-            results.append(_build_lead_dict(lead, business, enrichment))
-        return {"count": len(results), "leads": results}
+        total = db.query(Lead).count()
+        rows = (
+            db.query(Lead, Business, Enrichment)
+            .outerjoin(Business, Lead.business_id == Business.id)
+            .outerjoin(Enrichment, Enrichment.business_id == Lead.business_id)
+            .order_by(Lead.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        results = [_build_lead_dict(lead, business, enrichment) for lead, business, enrichment in rows]
+        return {"count": len(results), "total": total, "offset": offset, "leads": results}
     except Exception as exc:
         logger.exception(exc)
-        return {"count": 0, "leads": [], "error": str(exc)}
+        return {"count": 0, "total": 0, "leads": [], "error": str(exc)}
     finally:
         db.close()
 
 
-def get_crm_leads():
+def get_crm_leads(limit: int = 200, offset: int = 0):
     """Returns only leads manually added to CRM (CRM page)."""
     db = SessionLocal()
     try:
-        leads = db.query(Lead).filter(Lead.in_crm == "true").order_by(Lead.created_at.desc()).all()
-        results = []
-        for lead in leads:
-            business = db.query(Business).filter(Business.id == lead.business_id).first()
-            enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
-            results.append(_build_lead_dict(lead, business, enrichment))
-        return {"count": len(results), "leads": results}
+        base_query = db.query(Lead).filter(Lead.in_crm == "true")
+        total = base_query.count()
+        rows = (
+            db.query(Lead, Business, Enrichment)
+            .outerjoin(Business, Lead.business_id == Business.id)
+            .outerjoin(Enrichment, Enrichment.business_id == Lead.business_id)
+            .filter(Lead.in_crm == "true")
+            .order_by(Lead.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        results = [_build_lead_dict(lead, business, enrichment) for lead, business, enrichment in rows]
+        return {"count": len(results), "total": total, "offset": offset, "leads": results}
     except Exception as exc:
         logger.exception(exc)
-        return {"count": 0, "leads": [], "error": str(exc)}
+        return {"count": 0, "total": 0, "leads": [], "error": str(exc)}
     finally:
         db.close()
 

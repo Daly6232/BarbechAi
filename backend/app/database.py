@@ -242,106 +242,119 @@ class AgentActivity(Base):
     )
 
 
+class SchemaMigration(Base):
+    """Tracks which named migrations have already run, so each one executes
+    exactly once instead of being re-attempted (and silently failing) on
+    every single backend restart."""
+    __tablename__ = "schema_migrations"
+
+    name = Column(String, primary_key=True)
+    applied_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     logger.info("Initializing database...")
-    # Step 1: Standard SQLAlchemy tables setup
+    # Step 1: Standard SQLAlchemy tables setup — creates any brand-new
+    # tables (including schema_migrations itself) but never alters existing
+    # ones, hence the registry below for anything added after go-live.
     Base.metadata.create_all(bind=engine)
 
-    # Step 2: Automated inline schema checks.
-    # IMPORTANT: "ADD COLUMN IF NOT EXISTS" is Postgres-only syntax. SQLite (the
-    # local/dev default from DATABASE_URL) throws a syntax error on it every
-    # single time, which used to be swallowed by the except below — meaning the
-    # column never actually got added locally, and every lead insert that wrote
-    # service_opportunities would then crash with "no such column".
-    is_sqlite = engine.dialect.name == "sqlite"
+    with engine.begin() as conn:
+        try:
+            already_applied = {row[0] for row in conn.execute(text("SELECT name FROM schema_migrations")).fetchall()}
+        except Exception:
+            already_applied = set()
 
-    if is_sqlite:
-        with engine.begin() as conn:
-            existing_cols = {
-                row[1] for row in conn.execute(text("PRAGMA table_info(leads)")).fetchall()
-            }
-            if "service_opportunities" not in existing_cols:
-                try:
-                    conn.execute(text("ALTER TABLE leads ADD COLUMN service_opportunities TEXT"))
-                    logger.info("Startup Migration Success (sqlite): added service_opportunities")
-                except Exception as e:
-                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
-
-            agent_activity_cols = {
-                row[1] for row in conn.execute(text("PRAGMA table_info(agent_activity)")).fetchall()
-            }
-            if agent_activity_cols and "user_id" not in agent_activity_cols:
-                try:
-                    conn.execute(text("ALTER TABLE agent_activity ADD COLUMN user_id TEXT"))
-                    logger.info("Startup Migration Success (sqlite): added agent_activity.user_id")
-                except Exception as e:
-                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
-
-            businesses_cols = {
-                row[1] for row in conn.execute(text("PRAGMA table_info(businesses)")).fetchall()
-            }
-            if businesses_cols and "data_basis" not in businesses_cols:
-                try:
-                    conn.execute(text("ALTER TABLE businesses ADD COLUMN data_basis TEXT DEFAULT 'legitimate_interest_b2b'"))
-                    logger.info("Startup Migration Success (sqlite): added businesses.data_basis")
-                except Exception as e:
-                    logger.warning("Startup Migration Failed (sqlite): %s", str(e))
-
-            users_cols = {
-                row[1] for row in conn.execute(text("PRAGMA table_info(users)")).fetchall()
-            }
-            user_security_cols = {
-                "failed_login_attempts": "INTEGER DEFAULT 0",
-                "locked_until": "DATETIME",
-                "last_login_ip": "TEXT",
-                "last_login_device": "TEXT",
-                "mfa_secret": "TEXT",
-                "mfa_enabled": "BOOLEAN DEFAULT 0",
-            }
-            for col, coltype in user_security_cols.items():
-                if users_cols and col not in users_cols:
-                    try:
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {coltype}"))
-                        logger.info("Startup Migration Success (sqlite): added users.%s", col)
-                    except Exception as e:
-                        logger.warning("Startup Migration Failed (sqlite): %s", str(e))
-
-            # SQLite creates indexes via CREATE INDEX IF NOT EXISTS fine, no dialect issue there.
-            migrations = [
-                "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
-                "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
-                "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
-                "CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log (timestamp);",
-                "CREATE INDEX IF NOT EXISTS ix_audit_log_actor ON audit_log (actor_id);",
-            ]
-    else:
-        migrations = [
-            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS service_opportunities TEXT;",
-            "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS user_id TEXT;",
-            "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS data_basis TEXT DEFAULT 'legitimate_interest_b2b';",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_device TEXT;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE;",
-            "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
-            "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
-            "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
-            "CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log (timestamp);",
-            "CREATE INDEX IF NOT EXISTS ix_audit_log_actor ON audit_log (actor_id);",
-        ]
-
-    # Each statement gets its OWN connection/transaction. Previously these all
-    # shared one transaction — the first timeout (e.g. a slow cross-region link
-    # to the DB) left Postgres in "aborted transaction" state, so every single
-    # statement after it failed too, even harmless ones like CREATE INDEX.
-    for cmd in migrations:
+    for name, migration_fn in MIGRATIONS:
+        if name in already_applied:
+            continue
         try:
             with engine.begin() as conn:
-                conn.execute(text(cmd))
-            logger.info("Startup Migration Success: %s", cmd)
+                migration_fn(conn)
+                conn.execute(
+                    text("INSERT INTO schema_migrations (name, applied_at) VALUES (:name, :ts)"),
+                    {"name": name, "ts": datetime.utcnow()},
+                )
+            logger.info("Migration applied: %s", name)
         except Exception as e:
-            logger.warning("Startup Migration Skipped/Failed: %s - Error: %s", cmd, str(e))
+            # Each migration gets its own transaction — one failure (e.g. a
+            # slow cross-region connection timing out) can't poison every
+            # migration after it the way a single shared transaction did.
+            logger.warning("Migration failed, will retry next startup: %s - %s", name, str(e))
 
     logger.info("Database initialization and migration check completed successfully.")
+
+
+def _column_exists(conn, table: str, column: str) -> bool:
+    if engine.dialect.name == "sqlite":
+        cols = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+    else:
+        cols = {
+            row[0] for row in conn.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name = :t"),
+                {"t": table},
+            ).fetchall()
+        }
+    return column in cols
+
+
+def _add_column_if_missing(conn, table: str, column: str, sqlite_type: str, postgres_type: str):
+    if _column_exists(conn, table, column):
+        return
+    coltype = sqlite_type if engine.dialect.name == "sqlite" else postgres_type
+    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}"))
+
+
+def _migration_service_opportunities(conn):
+    _add_column_if_missing(conn, "leads", "service_opportunities", "TEXT", "TEXT")
+
+
+def _migration_agent_activity_user_id(conn):
+    _add_column_if_missing(conn, "agent_activity", "user_id", "TEXT", "TEXT")
+
+
+def _migration_business_data_basis(conn):
+    _add_column_if_missing(conn, "businesses", "data_basis",
+                            "TEXT DEFAULT 'legitimate_interest_b2b'",
+                            "TEXT DEFAULT 'legitimate_interest_b2b'")
+
+
+def _migration_user_security_columns(conn):
+    _add_column_if_missing(conn, "users", "failed_login_attempts", "INTEGER DEFAULT 0", "INTEGER DEFAULT 0")
+    _add_column_if_missing(conn, "users", "locked_until", "DATETIME", "TIMESTAMP")
+    _add_column_if_missing(conn, "users", "last_login_ip", "TEXT", "TEXT")
+    _add_column_if_missing(conn, "users", "last_login_device", "TEXT", "TEXT")
+    _add_column_if_missing(conn, "users", "mfa_secret", "TEXT", "TEXT")
+    _add_column_if_missing(conn, "users", "mfa_enabled", "BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE")
+
+
+def _migration_performance_indexes(conn):
+    # CREATE INDEX IF NOT EXISTS is valid on both SQLite and Postgres, so
+    # this one needs no dialect branching. Adds indexes on columns that
+    # were being filtered on with no index at all (crm_status,
+    # assigned_field_agent, agent_activity lookups by lead/user).
+    for stmt in [
+        "CREATE INDEX IF NOT EXISTS ix_leads_status ON leads (status);",
+        "CREATE INDEX IF NOT EXISTS ix_leads_crm_status ON leads (crm_status);",
+        "CREATE INDEX IF NOT EXISTS ix_leads_assigned_field_agent ON leads (assigned_field_agent);",
+        "CREATE INDEX IF NOT EXISTS ix_leads_in_crm ON leads (in_crm);",
+        "CREATE INDEX IF NOT EXISTS ix_businesses_category ON businesses (category);",
+        "CREATE INDEX IF NOT EXISTS ix_businesses_city ON businesses (city);",
+        "CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log (timestamp);",
+        "CREATE INDEX IF NOT EXISTS ix_audit_log_actor ON audit_log (actor_id);",
+        "CREATE INDEX IF NOT EXISTS ix_agent_activity_lead_id ON agent_activity (lead_id);",
+        "CREATE INDEX IF NOT EXISTS ix_agent_activity_user_id ON agent_activity (user_id);",
+    ]:
+        conn.execute(text(stmt))
+
+
+# Ordered, named, idempotent. Add new entries to the END of this list —
+# never reorder or rename existing ones, since names are how the tracking
+# table knows what's already run.
+MIGRATIONS = [
+    ("2024_add_service_opportunities", _migration_service_opportunities),
+    ("2024_add_agent_activity_user_id", _migration_agent_activity_user_id),
+    ("2026_add_business_data_basis", _migration_business_data_basis),
+    ("2026_add_user_security_columns", _migration_user_security_columns),
+    ("2026_add_performance_indexes", _migration_performance_indexes),
+]

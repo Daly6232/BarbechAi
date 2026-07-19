@@ -129,16 +129,16 @@ def get_my_leads(user_id: str, governorate: str = None, delegation: str = None):
     Optional governorate/delegation filter for sweeping one area at a time."""
     db = SessionLocal()
     try:
-        leads = (
-            db.query(Lead)
+        rows = (
+            db.query(Lead, Business, Enrichment)
+            .outerjoin(Business, Lead.business_id == Business.id)
+            .outerjoin(Enrichment, Enrichment.business_id == Lead.business_id)
             .filter(Lead.assigned_field_agent == user_id)
             .order_by(Lead.created_at.desc())
             .all()
         )
         results = []
-        for lead in leads:
-            business = db.query(Business).filter(Business.id == lead.business_id).first()
-            enrichment = db.query(Enrichment).filter(Enrichment.business_id == lead.business_id).first()
+        for lead, business, enrichment in rows:
             entry = _lead_to_dict(lead, business, enrichment)
             if delegation and business and business.city != delegation:
                 continue
