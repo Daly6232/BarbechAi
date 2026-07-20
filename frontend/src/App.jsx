@@ -7,6 +7,7 @@ import AgentPage from "./pages/AgentPage";
 import TeamPage from "./pages/TeamPage";
 import ExportPage from "./pages/ExportPage";
 import UsersPage from "./pages/UsersPage";
+import ReportsPage from "./pages/ReportsPage";
 import { apiFetch, setAuthExpiredHandler } from "./api";
 import { API } from "./config";
 import { theme } from "./theme";
@@ -14,8 +15,8 @@ import logo from "./assets/zayer-logo.png";
 
 // Which tabs each role can see
 const ROLE_PAGES = {
-  master_admin: ["Search", "Leads", "CRM", "Agent", "Export", "Users"],
-  admin: ["Search", "Leads", "CRM", "Agent", "Export", "Users"],
+  master_admin: ["Search", "Leads", "CRM", "Agent", "Reports", "Export", "Users"],
+  admin: ["Search", "Leads", "CRM", "Agent", "Reports", "Export", "Users"],
   back_office: ["Leads", "CRM"],
   field_agent: ["Agent"],
 };
@@ -159,6 +160,7 @@ export default function App() {
       )}
       {page === "Export" && visiblePages.includes("Export") && <ExportPage />}
       {page === "Users" && visiblePages.includes("Users") && <UsersPage user={user} />}
+      {page === "Reports" && visiblePages.includes("Reports") && <ReportsPage />}
     </div>
   );
 }

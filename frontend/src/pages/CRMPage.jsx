@@ -92,7 +92,7 @@ export default function CRMPage({ user }) {
             <StatBadge label="TOTAL" value={leads.length} color="#6B7280" />
             <StatBadge label="WON" value={totalWon} color="#22c55e" />
             <StatBadge label="LOST" value={totalLost} color="#ef4444" />
-            <button onClick={fetchCRMLeads} style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+            <button onClick={fetchCRMLeads} aria-label="Actualiser" style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
           </div>
         </div>
         {crmTotal > leads.length && (

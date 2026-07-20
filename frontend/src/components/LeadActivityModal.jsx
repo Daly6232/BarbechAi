@@ -29,6 +29,29 @@ export default function LeadActivityModal({ lead, user, onClose, onNoteAdded, on
   const [exporting, setExporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [nextAction, setNextAction] = useState(lead.next_action || "");
+  const [callbackDate, setCallbackDate] = useState(lead.callback_date ? lead.callback_date.slice(0, 16) : "");
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [followUpMsg, setFollowUpMsg] = useState(null);
+
+  const NEXT_ACTIONS = ["Rappeler", "Envoyer email", "Envoyer WhatsApp", "Planifier RDV", "Envoyer proposition", "Relancer proposition", "Conclure le deal"];
+
+  const saveFollowUp = async () => {
+    setSavingFollowUp(true);
+    setFollowUpMsg(null);
+    try {
+      const params = new URLSearchParams({ next_action: nextAction });
+      if (callbackDate) params.set("callback_date", new Date(callbackDate).toISOString());
+      const res = await apiFetch(`${API}/crm/lead/${encodeURIComponent(lead.id)}/follow-up?${params.toString()}`, { method: "POST" });
+      const data = await res.json();
+      if (data.error) setFollowUpMsg({ ok: false, text: data.error });
+      else setFollowUpMsg({ ok: true, text: "Prochaine action enregistrée." });
+    } catch {
+      setFollowUpMsg({ ok: false, text: "Échec de connexion." });
+    } finally {
+      setSavingFollowUp(false);
+    }
+  };
 
   const canErase = user?.role === "admin" || user?.role === "master_admin";
 
@@ -103,7 +126,7 @@ export default function LeadActivityModal({ lead, user, onClose, onNoteAdded, on
               {lead.category?.toUpperCase()} · {lead.city}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#9AA0AC", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: "transparent", border: "none", color: "#9AA0AC", fontSize: 20, cursor: "pointer", lineHeight: 1, minWidth: 32, minHeight: 32 }}>✕</button>
         </div>
 
         {lead.phone && (
@@ -111,6 +134,29 @@ export default function LeadActivityModal({ lead, user, onClose, onNoteAdded, on
         )}
         <div style={{ fontFamily: "monospace", fontSize: 11, color: "#C4A264", marginTop: 6 }}>
           👤 {lead.assigned_agent_name || "Non assigné"}
+        </div>
+
+        {/* Follow-up / next action */}
+        <div style={{ marginTop: 14, background: "#F5F6F8", border: "1px solid #E2E4E9", borderRadius: 6, padding: 12 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", letterSpacing: 2, marginBottom: 8 }}>PROCHAINE ACTION</div>
+          <select value={nextAction} onChange={e => setNextAction(e.target.value)} style={{ width: "100%", background: "#FFFFFF", border: "1px solid #D7DAE1", borderRadius: 4, color: "#121830", padding: "8px 10px", fontSize: 12, marginBottom: 8 }}>
+            <option value="">Aucune action définie</option>
+            {NEXT_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <input
+            type="datetime-local"
+            value={callbackDate}
+            onChange={e => setCallbackDate(e.target.value)}
+            style={{ width: "100%", background: "#FFFFFF", border: "1px solid #D7DAE1", borderRadius: 4, color: "#121830", padding: "8px 10px", fontSize: 12, marginBottom: 8 }}
+          />
+          <button onClick={saveFollowUp} disabled={savingFollowUp} style={{ background: "#121830", color: "#fff", border: "none", borderRadius: 4, padding: "8px 14px", fontFamily: "monospace", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+            {savingFollowUp ? "..." : "ENREGISTRER"}
+          </button>
+          {followUpMsg && (
+            <div style={{ marginTop: 8, fontFamily: "monospace", fontSize: 10, color: followUpMsg.ok ? "#22c55e" : "#ef4444" }}>
+              {followUpMsg.ok ? "✓ " : "⚠ "}{followUpMsg.text}
+            </div>
+          )}
         </div>
 
         {/* GDPR actions */}

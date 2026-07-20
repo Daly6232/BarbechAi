@@ -1,7 +1,9 @@
 import asyncio
+import time
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.agents import router as agent_router
@@ -10,12 +12,25 @@ from app.api.discover import router as discover_router
 from app.api.ws import router as ws_router
 from app.api.auth import router as auth_router
 from app.core.config import settings
-from app.core.logging import get_logger
+from app.core.logging import get_logger, request_id_var
 from app.database import init_db
 from app.services.websocket_manager import manager
 from app.services.audit import prune_old_audit_logs
 
 logger = get_logger(__name__)
+
+# Dormant unless SENTRY_DSN is actually set — no-ops otherwise, and never
+# crashes the app if the sentry_sdk package isn't installed for any reason,
+# since the last two production incidents this app had were both import-time
+# crashes and that's exactly the failure mode to avoid introducing here.
+if settings.SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=settings.SENTRY_DSN, environment=settings.ENVIRONMENT,
+                         traces_sample_rate=0.1)
+        logger.info("Sentry error tracking enabled")
+    except ImportError:
+        logger.warning("SENTRY_DSN is set but sentry-sdk isn't installed — skipping")
 
 
 @asynccontextmanager
@@ -36,6 +51,30 @@ app = FastAPI(
                  "kept alive for existing clients.",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def request_id_and_timing_middleware(request: Request, call_next):
+    """Tags every request with an ID (reused from X-Request-ID if the
+    client already sent one) so its log lines can be correlated, and logs
+    method/path/status/duration for every request — the basic 'what is
+    this service actually doing' visibility that didn't exist before."""
+    req_id = request.headers.get("x-request-id", str(uuid.uuid4())[:8])
+    token = request_id_var.set(req_id)
+    start = time.monotonic()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        logger.exception("Unhandled exception on %s %s (%sms)", request.method, request.url.path, duration_ms)
+        raise
+    finally:
+        request_id_var.reset(token)
+    duration_ms = round((time.monotonic() - start) * 1000, 1)
+    response.headers["X-Request-ID"] = req_id
+    logger.info("%s %s -> %s (%sms)", request.method, request.url.path, response.status_code, duration_ms)
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,

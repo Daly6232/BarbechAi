@@ -143,6 +143,11 @@ class Lead(Base):
     confirmed_at = Column(DateTime)
     callback_date = Column(DateTime)
     client_requests = Column(Text)
+    # "Every lead must always have a next action" — from the original spec,
+    # never actually built. callback_date already existed but was unused
+    # anywhere in the codebase; next_action pairs a short label with it
+    # (Call Again, Send Email, Schedule Meeting, etc.)
+    next_action = Column(String, nullable=True)
 
     # Assignment
     assigned_back_office = Column(String)
@@ -348,6 +353,11 @@ def _migration_performance_indexes(conn):
         conn.execute(text(stmt))
 
 
+def _migration_next_action(conn):
+    _add_column_if_missing(conn, "leads", "next_action", "TEXT", "TEXT")
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_leads_callback_date ON leads (callback_date);"))
+
+
 # Ordered, named, idempotent. Add new entries to the END of this list —
 # never reorder or rename existing ones, since names are how the tracking
 # table knows what's already run.
@@ -357,4 +367,5 @@ MIGRATIONS = [
     ("2026_add_business_data_basis", _migration_business_data_basis),
     ("2026_add_user_security_columns", _migration_user_security_columns),
     ("2026_add_performance_indexes", _migration_performance_indexes),
+    ("2026_add_next_action", _migration_next_action),
 ]

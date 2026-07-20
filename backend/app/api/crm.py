@@ -13,14 +13,51 @@ from app.services.crm_pipeline import (
     anonymize_lead,
     retention_review,
     retention_purge,
+    set_follow_up,
+    get_followups,
 )
 from app.core.config import settings
 from app.services.agent_activity import get_lead_activity
 from app.services.location_audit import run_location_audit
+from app.services.reports import conversion_and_revenue_trends, agent_leaderboard
 
 router = APIRouter()
 
 CRM_ROLES = ["master_admin", "admin", "back_office"]
+
+
+@router.post("/crm/lead/{lead_id}/follow-up")
+def follow_up(lead_id: str, next_action: str, callback_date: str = None, authorization: str = Header(None)):
+    """Set the next action + due date for a lead."""
+    user, error = require_auth(authorization, CRM_ROLES)
+    if error:
+        return error
+    return set_follow_up(lead_id, next_action, callback_date, requester=user)
+
+
+@router.get("/crm/followups")
+def followups(overdue_only: bool = False, agent_id: str = None, authorization: str = Header(None)):
+    """Pending follow-ups, optionally filtered to overdue and/or one agent."""
+    user, error = require_auth(authorization, CRM_ROLES + ["field_agent"])
+    if error:
+        return error
+    return get_followups(overdue_only=overdue_only, agent_id=agent_id)
+
+
+@router.get("/reports/trends")
+def report_trends(months: int = 6, authorization: str = Header(None)):
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    return conversion_and_revenue_trends(months=min(months, 24))
+
+
+@router.get("/reports/leaderboard")
+def report_leaderboard(authorization: str = Header(None)):
+    user, error = require_auth(authorization, ["admin", "master_admin"])
+    if error:
+        return error
+    return agent_leaderboard()
 
 
 @router.get("/crm/location-audit")

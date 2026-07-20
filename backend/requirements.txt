@@ -9,3 +9,4 @@ bcrypt
 python-jose[cryptography]
 python-dotenv==1.2.2
 duckduckgo-search
+sentry-sdk[fastapi]

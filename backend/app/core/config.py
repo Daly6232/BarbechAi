@@ -59,5 +59,10 @@ class Settings:
     # business data. Default: 2 years after a lead is marked LOST.
     LOST_LEAD_RETENTION_DAYS = int(os.getenv("LOST_LEAD_RETENTION_DAYS", "730"))
 
+    # Error tracking — dormant unless explicitly configured. Sign up at
+    # sentry.io, create a project, and set SENTRY_DSN in Render's
+    # environment variables to activate. Does nothing otherwise.
+    SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
 
 settings = Settings()

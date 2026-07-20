@@ -158,7 +158,7 @@ export default function LeadsPage() {
         <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>LEAD MANAGEMENT</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <h1 style={{ fontSize: 26, fontWeight: 800 }}>Leads Pipeline</h1>
-          <button onClick={fetchLeads} style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+          <button onClick={fetchLeads} aria-label="Actualiser" style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#888", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
         </div>
       </div>
 

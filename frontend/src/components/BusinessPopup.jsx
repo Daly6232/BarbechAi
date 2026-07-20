@@ -91,7 +91,7 @@ export default function BusinessPopup({ biz, onClose }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <div style={{ background: scoreColor, color: "#fff", fontFamily: "monospace", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 3 }}>{scoreLabel}</div>
             <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 800, color: scoreColor }}>{biz.score}</div>
-            <button onClick={onClose} style={{ background: "transparent", border: "1px solid #9AA0AC", color: "#888", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 16 }}>✕</button>
+            <button onClick={onClose} aria-label="Fermer" style={{ background: "transparent", border: "1px solid #9AA0AC", color: "#888", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 16, minWidth: 32, minHeight: 32 }}>✕</button>
           </div>
         </div>
 

@@ -49,7 +49,7 @@ export default function AgentTimelineModal({ agent, onClose }) {
               HISTORIQUE COMPLET
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#9AA0AC", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: "transparent", border: "none", color: "#9AA0AC", fontSize: 20, cursor: "pointer", lineHeight: 1, minWidth: 32, minHeight: 32 }}>✕</button>
         </div>
 
         {loading ? (

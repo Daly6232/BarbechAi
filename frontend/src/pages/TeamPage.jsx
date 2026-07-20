@@ -22,6 +22,15 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState("deals_closed");
   const [viewingTimeline, setViewingTimeline] = useState(null);
+  const [overdueFollowups, setOverdueFollowups] = useState([]);
+
+  const loadOverdue = async () => {
+    try {
+      const res = await apiFetch(`${API}/crm/followups?overdue_only=true`);
+      const data = await res.json();
+      setOverdueFollowups(data.followups || []);
+    } catch {}
+  };
 
   const load = async () => {
     setLoading(true);
@@ -52,7 +61,7 @@ export default function TeamPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadOverdue(); }, []);
 
   const sorted = [...agents].sort((a, b) => {
     const sa = stats[a.id]?.[sortKey] || 0;
@@ -66,9 +75,26 @@ export default function TeamPage() {
         <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 8 }}>SUPERVISION</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Contrôle Qualité — Équipe</h1>
-          <button onClick={load} style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
+          <button onClick={load} aria-label="Actualiser" style={{ background: "#E2E4E9", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 5, padding: "6px 14px", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>↻ REFRESH</button>
         </div>
       </div>
+
+      {/* Overdue follow-ups — CEO-level visibility into leads nobody is
+          following up on, across the whole team */}
+      {overdueFollowups.length > 0 && (
+        <div style={{ background: "#FDEDED", border: "1px solid #ef444444", borderRadius: 8, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontFamily: "monospace", fontSize: 10, color: "#ef4444", letterSpacing: 2, marginBottom: 8 }}>
+            ⚠ {overdueFollowups.length} SUIVI(S) EN RETARD
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+            {overdueFollowups.slice(0, 20).map(f => (
+              <div key={f.id} style={{ fontFamily: "monospace", fontSize: 10, color: "#374151" }}>
+                <span style={{ fontWeight: 700 }}>{f.name}</span> — {f.next_action || "action non précisée"} · {f.assigned_agent_name || "non assigné"} · {f.callback_date ? new Date(f.callback_date).toLocaleDateString() : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sort control */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>

@@ -37,6 +37,9 @@ def _build_lead_dict(lead, business, enrichment):
         "crm_notes": lead.crm_notes or "",
         "assigned_agent": lead.assigned_field_agent or lead.assigned_back_office or "",
         "assigned_agent_name": lead.assigned_agent_name or "",
+        "next_action": lead.next_action or "",
+        "callback_date": lead.callback_date.isoformat() if lead.callback_date else None,
+        "deal_value": lead.deal_value,
         "created_at": lead.created_at.isoformat() if lead.created_at else "",
     }
 
@@ -160,6 +163,68 @@ def retention_purge(lead_ids: list, requester: dict = None):
     results = [anonymize_lead(lid, requester=requester) for lid in lead_ids]
     succeeded = sum(1 for r in results if r.get("success"))
     return {"success": True, "anonymized": succeeded, "requested": len(lead_ids)}
+
+
+def set_follow_up(lead_id: str, next_action: str, callback_date_iso: str = None, requester: dict = None):
+    """Set the next action + due date for a lead. This is what makes the
+    'overdue follow-ups' dashboard possible — callback_date already existed
+    as a column but nothing ever wrote to it before this."""
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return {"error": "Lead not found"}
+        lead.next_action = next_action
+        if callback_date_iso:
+            try:
+                lead.callback_date = datetime.fromisoformat(callback_date_iso)
+            except ValueError:
+                return {"error": "Invalid date format, expected ISO 8601"}
+        else:
+            lead.callback_date = None
+        db.commit()
+        return {"success": True, "lead_id": lead_id, "next_action": next_action}
+    except Exception as exc:
+        db.rollback()
+        logger.exception(exc)
+        return {"error": str(exc)}
+    finally:
+        db.close()
+
+
+def get_followups(overdue_only: bool = False, agent_id: str = None):
+    """Leads with a pending follow-up, optionally filtered to overdue ones
+    and/or one agent — this powers both 'My Tasks Today' style dashboards
+    and the CEO-level overdue-followups view."""
+    db = SessionLocal()
+    try:
+        query = db.query(Lead).filter(Lead.callback_date.isnot(None))
+        query = query.filter(~Lead.crm_status.in_(["WON", "LOST"]))
+        if overdue_only:
+            query = query.filter(Lead.callback_date < datetime.utcnow())
+        if agent_id:
+            query = query.filter(Lead.assigned_field_agent == agent_id)
+        leads = query.order_by(Lead.callback_date.asc()).all()
+
+        results = []
+        now = datetime.utcnow()
+        for lead in leads:
+            business = db.query(Business).filter(Business.id == lead.business_id).first()
+            results.append({
+                "id": lead.id,
+                "name": business.name if business else "",
+                "next_action": lead.next_action or "",
+                "callback_date": lead.callback_date.isoformat() if lead.callback_date else None,
+                "overdue": lead.callback_date < now if lead.callback_date else False,
+                "assigned_agent_name": lead.assigned_agent_name or "",
+                "crm_status": lead.crm_status or "NEW",
+            })
+        return {"count": len(results), "followups": results}
+    except Exception as exc:
+        logger.exception(exc)
+        return {"count": 0, "followups": [], "error": str(exc)}
+    finally:
+        db.close()
 
 
 def get_pipeline_stats():
