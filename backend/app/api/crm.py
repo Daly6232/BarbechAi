@@ -16,10 +16,23 @@ from app.services.crm_pipeline import (
 )
 from app.core.config import settings
 from app.services.agent_activity import get_lead_activity
+from app.services.location_audit import run_location_audit
 
 router = APIRouter()
 
 CRM_ROLES = ["master_admin", "admin", "back_office"]
+
+
+@router.get("/crm/location-audit")
+def location_audit(authorization: str = Header(None)):
+    """Read-only: flags leads likely corrupted by the city/phone/website
+    validation bugs fixed 2026-07-19. Makes zero writes. master_admin only —
+    added because Render's One-Off Jobs (the normal way to run this) turned
+    out to require a paid plan this account doesn't have."""
+    user, error = require_auth(authorization, ["master_admin"])
+    if error:
+        return error
+    return run_location_audit()
 
 
 @router.get("/crm/lead/{lead_id}/activity")

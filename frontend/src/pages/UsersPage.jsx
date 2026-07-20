@@ -40,6 +40,38 @@ export default function UsersPage({ user }) {
   const [auditHasMore, setAuditHasMore] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
 
+  // Location/data-quality audit (master_admin only)
+  const [showLocAudit, setShowLocAudit] = useState(false);
+  const [locAuditResult, setLocAuditResult] = useState(null);
+  const [locAuditLoading, setLocAuditLoading] = useState(false);
+
+  const runLocationAudit = async () => {
+    setLocAuditLoading(true);
+    try {
+      const res = await apiFetch(`${API}/crm/location-audit`);
+      const data = await res.json();
+      setLocAuditResult(data);
+    } catch {
+      setLocAuditResult({ error: "Échec de connexion au serveur." });
+    } finally {
+      setLocAuditLoading(false);
+    }
+  };
+
+  const downloadLocAuditCsv = () => {
+    if (!locAuditResult?.flagged?.length) return;
+    const headers = ["business_id", "name", "stored_city", "lat", "lng", "phone", "website", "reasons"];
+    const rows = locAuditResult.flagged.map(f => headers.map(h => JSON.stringify(f[h] ?? "")).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "location-audit.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // GDPR retention review
   const [retentionCandidates, setRetentionCandidates] = useState(null); // null = not loaded yet
   const [retentionDays, setRetentionDays] = useState(730);
@@ -474,6 +506,80 @@ export default function UsersPage({ user }) {
         )}
       </div>
 
+      {/* Location/data-quality audit (master_admin only — Render's One-Off
+          Jobs, the normal way to run this, requires a paid plan) */}
+      {isMasterAdmin && (
+        <div style={{ marginTop: 36 }}>
+          <button onClick={() => setShowLocAudit(!showLocAudit)} style={{
+            width: "100%", background: "#FFFFFF", border: "1px solid #E2E4E9", borderRadius: 6,
+            padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+            cursor: "pointer", textAlign: "left",
+          }}>
+            <div>
+              <div style={{ fontFamily: "monospace", fontSize: 10, color: "#121830", letterSpacing: 3, marginBottom: 4 }}>QUALITÉ DES DONNÉES</div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>Audit géographique</div>
+            </div>
+            <div style={{ color: "#9AA0AC" }}>{showLocAudit ? "▾" : "▸"}</div>
+          </button>
+
+          {showLocAudit && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, color: "#374151", marginBottom: 10 }}>
+                Détecte les leads affectés par les bugs de localisation corrigés le 19/07 (ville mal assignée, téléphone/site non-tunisien). Lecture seule — aucune modification.
+              </div>
+
+              {!locAuditResult && (
+                <button onClick={runLocationAudit} disabled={locAuditLoading} style={{ background: "#121830", color: "#fff", border: "none", borderRadius: 4, padding: "10px 16px", fontFamily: "monospace", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {locAuditLoading ? "AUDIT EN COURS..." : "LANCER L'AUDIT →"}
+                </button>
+              )}
+
+              {locAuditResult?.error && (
+                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#ef4444" }}>{locAuditResult.error}</div>
+              )}
+
+              {locAuditResult && !locAuditResult.error && (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, marginBottom: 12 }}>
+                    <StatBox label="Vérifiés" value={locAuditResult.total_checked} />
+                    <StatBox label="Signalés" value={locAuditResult.flagged_count} color="#ef4444" />
+                    <StatBox label="% signalé" value={`${locAuditResult.flagged_percent}%`} color="#f5a623" />
+                    <StatBox label="Ville erronée" value={locAuditResult.city_mismatch_count} />
+                    <StatBox label="Tél. non-TN" value={locAuditResult.non_tn_phone_count} />
+                    <StatBox label="Site étranger" value={locAuditResult.foreign_tld_count} />
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                    <button onClick={runLocationAudit} disabled={locAuditLoading} style={{ background: "transparent", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 4, padding: "8px 14px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+                      {locAuditLoading ? "..." : "↻ RELANCER"}
+                    </button>
+                    {locAuditResult.flagged?.length > 0 && (
+                      <button onClick={downloadLocAuditCsv} style={{ background: "transparent", border: "1px solid #D7DAE1", color: "#6B7280", borderRadius: 4, padding: "8px 14px", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+                        ⬇ TÉLÉCHARGER CSV
+                      </button>
+                    )}
+                  </div>
+
+                  {locAuditResult.truncated && (
+                    <div style={{ fontFamily: "monospace", fontSize: 10, color: "#f5a623", marginBottom: 8 }}>
+                      ⚠ Liste tronquée — téléchargez le CSV pour la liste complète.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }}>
+                    {(locAuditResult.flagged || []).slice(0, 50).map(f => (
+                      <div key={f.business_id} style={{ fontFamily: "monospace", fontSize: 9, color: "#6B7280", background: "#F5F6F8", borderRadius: 3, padding: "6px 10px" }}>
+                        <span style={{ color: "#121830", fontWeight: 700 }}>{f.name}</span> · {f.stored_city} · {f.reasons}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Audit trail */}
       <div style={{ marginTop: 36 }}>
         <button onClick={toggleAudit} style={{
@@ -551,6 +657,15 @@ const AUDIT_COLORS = {
 
 function auditLabel(action) { return AUDIT_LABELS[action] || action; }
 function auditColor(action) { return AUDIT_COLORS[action] || "#9AA0AC"; }
+
+function StatBox({ label, value, color = "#121830" }) {
+  return (
+    <div style={{ background: "#F5F6F8", border: "1px solid #E2E4E9", borderRadius: 4, padding: "8px 4px", textAlign: "center" }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color }}>{value ?? 0}</div>
+      <div style={{ fontFamily: "monospace", fontSize: 8, color: "#9AA0AC" }}>{label.toUpperCase()}</div>
+    </div>
+  );
+}
 
 function Field({ label, children }) {
   return (
