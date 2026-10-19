@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from sqlalchemy import (
@@ -23,8 +24,23 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-DATABASE_URL = settings.DATABASE_URL
-engine = create_engine(DATABASE_URL)
+# Nettoyage de l'URL : espaces / guillemets en trop dans la variable d'environnement
+DATABASE_URL = (settings.DATABASE_URL or "").strip().strip('"').strip("'")
+
+# Render peut fournir des URLs postgres://, que SQLAlchemy 2.x refuse.
+# On force aussi le driver psycopg2 (celui présent dans requirements.txt),
+# même si l'URL contient postgresql+psycopg:// (driver non installé).
+DATABASE_URL = re.sub(
+    r"^(postgres|postgresql)(\+\w+)?://",
+    "postgresql+psycopg2://",
+    DATABASE_URL,
+)
+
+_engine_kwargs = {}
+if not DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs["pool_pre_ping"] = True
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 SessionLocal = sessionmaker(
     bind=engine,
