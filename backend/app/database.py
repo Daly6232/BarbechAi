@@ -23,8 +23,18 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-DATABASE_URL = settings.DATABASE_URL
-engine = create_engine(DATABASE_URL)
+# Nettoyage de l'URL : espaces / guillemets en trop dans la variable d'environnement
+DATABASE_URL = (settings.DATABASE_URL or "").strip().strip('"').strip("'")
+
+# Render peut fournir des URLs postgres://, que SQLAlchemy 2.x refuse.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+_engine_kwargs = {}
+if not DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs["pool_pre_ping"] = True
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 SessionLocal = sessionmaker(
     bind=engine,
